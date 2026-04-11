@@ -1,0 +1,24 @@
+# ---- Sensitive app data (DO NOT COMMIT) ----
+password_manager/keys/
+password_manager/vaults/
+password_manager/exports/
+
+# ---- Python bytecode/cache ----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ---- Virtual environments ----
+.venv/
+venv/
+ENV/
+
+# ---- OS/editor junk ----
+.DS_Store
+Thumbs.db
+.vscode/
+
+# ---- Local scratch tests (optional) ----
+password_manager/test_mod.py
+password_manager/test_prime.py
