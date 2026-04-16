@@ -99,6 +99,9 @@ def verify_vault(username: str, public_key: dict) -> bool:
         return False
         
     encrypted_vault_string = vault_data.get("encrypted_vault", "")
+    if not encrypted_vault_string:
+        raise ValueError("Vault is empty or corrupted")
+    
     message_bytes = encrypted_vault_string.encode('utf-8')
     
     return verify(message_bytes, (r, s), public_key)
