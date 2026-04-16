@@ -49,11 +49,19 @@ def _encrypt_and_save(username: str, master_password: str, entries: list, privat
     encrypted_vault_string = base64.b64encode(combined).decode('utf-8')
     
     # Needs to format properly and allow sign_vault to inject the signature after base schema is placed.
+
+    # vault_data = {
+    #     "encrypted_vault": encrypted_vault_string,
+    #     "signature": {}
+    # }
+
+    # NEW:The digital signature is computed over the encrypted vault content to ensure integrity.
     vault_data = {
-        "encrypted_vault": encrypted_vault_string,
-        "signature": {}
+    "encrypted_vault": encrypted_vault_string
     }
-    
+    signature = sign_vault(username, private_key, encrypted_vault_string)
+    vault_data["signature"] = signature
+
     vault_path = _get_vault_path(username)
     temp_path = vault_path + ".tmp"
     
@@ -62,7 +70,7 @@ def _encrypt_and_save(username: str, master_password: str, entries: list, privat
         
     os.replace(temp_path, vault_path)
     
-    sign_vault(username, private_key)
+    #sign_vault(username, private_key)
 
 def create_vault(username: str, master_password: str) -> None:
     private_key = load_private_key(username)
@@ -75,8 +83,8 @@ def create_vault(username: str, master_password: str) -> None:
     _encrypt_and_save(username, master_password, [], private_key)
 
 def add_credential(username: str, master_password: str, website: str, user: str, password: str) -> None:
-    public_key = load_public_key(username)
-    if not verify_vault(username, public_key):
+    public_key = load_public_key(username) 
+    if not verify_vault(username, public_key): # give it  a look: Semary
         raise ValueError("Vault signature verification failed.")
         
     entries = _decrypt_vault(username, master_password)
