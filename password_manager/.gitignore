@@ -22,3 +22,6 @@ Thumbs.db
 # ---- Local scratch tests (optional) ----
 password_manager/test_mod.py
 password_manager/test_prime.py
+vaults/
+keys/
+exports/

@@ -16,22 +16,22 @@ def _decrypt_vault(username: str, master_password: str) -> list:
     vault_path = _get_vault_path(username)
     if not os.path.exists(vault_path):
         raise ValueError("Vault not found for user.")
-        
+
     with open(vault_path, 'r', encoding='utf-8') as f:
         vault_data = json.load(f)
-        
+
     stored_string = vault_data.get("encrypted_vault", "")
     if not stored_string:
         return []
-        
+
     try:
-        raw = base64.b64decode(stored_string)
-        nonce = raw[:16]
-        tag = raw[16:32]
+        raw        = base64.b64decode(stored_string)
+        nonce      = raw[:16]
+        tag        = raw[16:32]
         ciphertext = raw[32:]
-        
-        data_key = sha256_bytes(master_password.encode('utf-8'))
-        cipher = AES.new(data_key, AES.MODE_GCM, nonce=nonce)
+
+        data_key  = sha256_bytes(master_password.encode('utf-8'))
+        cipher    = AES.new(data_key, AES.MODE_GCM, nonce=nonce)
         plaintext = cipher.decrypt_and_verify(ciphertext, tag)
         return json.loads(plaintext.decode('utf-8'))
     except Exception:
@@ -39,67 +39,46 @@ def _decrypt_vault(username: str, master_password: str) -> list:
 
 def _encrypt_and_save(username: str, master_password: str, entries: list, private_key: dict) -> None:
     data_key = sha256_bytes(master_password.encode('utf-8'))
-    cipher = AES.new(data_key, AES.MODE_GCM) # Nonce is generated fresh
-    
-    plaintext_bytes = json.dumps(entries).encode('utf-8')
-    ciphertext, tag = cipher.encrypt_and_digest(plaintext_bytes)
-    
-    nonce = cipher.nonce
-    combined = nonce + tag + ciphertext
-    encrypted_vault_string = base64.b64encode(combined).decode('utf-8')
-    
-    # Needs to format properly and allow sign_vault to inject the signature after base schema is placed.
+    cipher   = AES.new(data_key, AES.MODE_GCM)
 
-    # vault_data = {
-    #     "encrypted_vault": encrypted_vault_string,
-    #     "signature": {}
-    # }
+    plaintext_bytes     = json.dumps(entries).encode('utf-8')
+    ciphertext, tag     = cipher.encrypt_and_digest(plaintext_bytes)
+    nonce               = cipher.nonce
+    combined            = nonce + tag + ciphertext
+    encrypted_vault_str = base64.b64encode(combined).decode('utf-8')
 
-    # NEW:The digital signature is computed over the encrypted vault content to ensure integrity.
-    vault_data = {
-    "encrypted_vault": encrypted_vault_string
-    }
-    signature = sign_vault(username, private_key, encrypted_vault_string)
-    vault_data["signature"] = signature
-
+    # Write the encrypted vault (no signature yet) using a temp file so the
+    # on-disk vault is never left in a half-written state.
     vault_path = _get_vault_path(username)
-    temp_path = vault_path + ".tmp"
-    
+    temp_path  = vault_path + ".tmp"
+
     with open(temp_path, 'w', encoding='utf-8') as f:
-        json.dump(vault_data, f, indent=2)
-        
+        json.dump({"encrypted_vault": encrypted_vault_str, "signature": {}}, f, indent=2)
+
     os.replace(temp_path, vault_path)
-    
-    #sign_vault(username, private_key)
+
+    # sign_vault(username, private_key) reads the vault file that was just
+    # written above, computes a signature over encrypted_vault_str, and
+    # writes the result back into the same file.
+    sign_vault(username, private_key)
 
 def create_vault(username: str, master_password: str) -> None:
+    os.makedirs(VAULTS_DIR, exist_ok=True)
     private_key = load_private_key(username)
-    # create_vault bootstraps an empty vault.
-    # Write the base schema to file first, THEN let _encrypt_and_save do the payload setup.
-    vault_path = _get_vault_path(username)
-    with open(vault_path, 'w', encoding='utf-8') as f:
-        json.dump({"encrypted_vault": "", "signature": {}}, f)
-        
     _encrypt_and_save(username, master_password, [], private_key)
 
 def add_credential(username: str, master_password: str, website: str, user: str, password: str) -> None:
-    public_key = load_public_key(username) 
-    if not verify_vault(username, public_key): # give it  a look: Semary
+    public_key = load_public_key(username)
+    if not verify_vault(username, public_key):
         raise ValueError("Vault signature verification failed.")
-        
+
     entries = _decrypt_vault(username, master_password)
-    
-    website_lower = website.lower()
-    for entry in entries:
-        if entry.get("website", "").lower() == website_lower:
-            raise ValueError("Website already exists. Use update.")
-            
-    entries.append({
-        "website": website,
-        "username": user,
-        "password": password
-    })
-    
+
+    if any(e.get("website", "").lower() == website.lower() for e in entries):
+        raise ValueError("Website already exists. Use update.")
+
+    entries.append({"website": website, "username": user, "password": password})
+
     private_key = load_private_key(username)
     _encrypt_and_save(username, master_password, entries, private_key)
 
@@ -107,14 +86,13 @@ def get_credential(username: str, master_password: str, website: str):
     public_key = load_public_key(username)
     if not verify_vault(username, public_key):
         raise ValueError("Vault signature verification failed.")
-        
+
     entries = _decrypt_vault(username, master_password)
-    
-    website_lower = website.lower()
+
     for entry in entries:
-        if entry.get("website", "").lower() == website_lower:
+        if entry.get("website", "").lower() == website.lower():
             return entry
-            
+
     print("Website not found.")
     return None
 
@@ -122,36 +100,29 @@ def update_credential(username: str, master_password: str, website: str, new_use
     public_key = load_public_key(username)
     if not verify_vault(username, public_key):
         raise ValueError("Vault signature verification failed.")
-        
+
     entries = _decrypt_vault(username, master_password)
-    
-    website_lower = website.lower()
-    found = False
+
     for entry in entries:
-        if entry.get("website", "").lower() == website_lower:
+        if entry.get("website", "").lower() == website.lower():
             entry["username"] = new_user
             entry["password"] = new_password
-            found = True
-            break
-            
-    if not found:
-        raise ValueError("Website not found.")
-        
-    private_key = load_private_key(username)
-    _encrypt_and_save(username, master_password, entries, private_key)
+            private_key = load_private_key(username)
+            _encrypt_and_save(username, master_password, entries, private_key)
+            return
+
+    raise ValueError("Website not found.")
 
 def delete_credential(username: str, master_password: str, website: str) -> None:
     public_key = load_public_key(username)
     if not verify_vault(username, public_key):
         raise ValueError("Vault signature verification failed.")
-        
-    entries = _decrypt_vault(username, master_password)
-    
-    website_lower = website.lower()
-    new_entries = [entry for entry in entries if entry.get("website", "").lower() != website_lower]
-    
+
+    entries     = _decrypt_vault(username, master_password)
+    new_entries = [e for e in entries if e.get("website", "").lower() != website.lower()]
+
     if len(new_entries) == len(entries):
         raise ValueError("Website not found.")
-        
+
     private_key = load_private_key(username)
     _encrypt_and_save(username, master_password, new_entries, private_key)
