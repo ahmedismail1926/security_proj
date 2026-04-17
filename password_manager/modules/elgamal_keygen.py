@@ -30,7 +30,7 @@ def initialize_user(username: str) -> None:
 
     # Validate generator against the prime from config
     if not is_valid_generator(alpha, p):
-        craise ValueError("Invalid generator alpha: fails basic validity checks.")
+        raise ValueError("Invalid generator alpha: fails basic validity checks.")
 
     # Private key x ∈ [2, p-2]
     # x=1 ⟹ y=alpha, trivially broken; secrets.randbelow is cryptographically
