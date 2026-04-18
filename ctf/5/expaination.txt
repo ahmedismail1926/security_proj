@@ -1,0 +1,55 @@
+AssertionError: Oracle returned invalid! Check /oracle request format.
+PS A:\University\Spring2026\Security\Project\security_proj\ctf\5> py .\script.py
+==============================================================
+  CBC Padding Oracle Attack
+  IV  : 38d3ae899b34ebcdf9eb5a0bf4f1bb4a
+  C1  : 6ae9d1c7f6463090c10de6936dc79bf3
+  C2  : de0dd507dc8988903711a0f9f7fb2294
+==============================================================
+
+[*] Sanity check — original ciphertext should be valid...
+[+] Oracle confirmed: valid padding.
+
+[*] Starting padding oracle attack (~1-3 min)...
+
+[*] Decrypting block 1/2 ...
+  [B1] byte[15] = 0x67 'g'  (pad=0x01  calls=46)
+  [B1] byte[14] = 0x6e 'n'  (pad=0x02  calls=262)
+  [B1] byte[13] = 0x69 'i'  (pad=0x03  calls=418)
+  [B1] byte[12] = 0x64 'd'  (pad=0x04  calls=567)
+  [B1] byte[11] = 0x64 'd'  (pad=0x05  calls=674)
+  [B1] byte[10] = 0x34 '4'  (pad=0x06  calls=779)
+  [B1] byte[ 9] = 0x70 'p'  (pad=0x07  calls=936)
+  [B1] byte[ 8] = 0x5f '_'  (pad=0x08  calls=1111)
+  [B1] byte[ 7] = 0x63 'c'  (pad=0x09  calls=1279)
+  [B1] byte[ 6] = 0x62 'b'  (pad=0x0a  calls=1411)
+  [B1] byte[ 5] = 0x63 'c'  (pad=0x0b  calls=1504)
+  [B1] byte[ 4] = 0x7b '{'  (pad=0x0c  calls=1741)
+  [B1] byte[ 3] = 0x4e 'N'  (pad=0x0d  calls=1944)
+  [B1] byte[ 2] = 0x50 'P'  (pad=0x0e  calls=2185)
+  [B1] byte[ 1] = 0x4d 'M'  (pad=0x0f  calls=2331)
+  [B1] byte[ 0] = 0x43 'C'  (pad=0x10  calls=2439)
+
+[*] Decrypting block 2/2 ...
+  [B2] byte[15] = 0x08 '.'  (pad=0x01  calls=252)
+  [B2] byte[14] = 0x08 '.'  (pad=0x02  calls=398)
+  [B2] byte[13] = 0x08 '.'  (pad=0x03  calls=603)
+  [B2] byte[12] = 0x08 '.'  (pad=0x04  calls=701)
+  [B2] byte[11] = 0x08 '.'  (pad=0x05  calls=860)
+  [B2] byte[10] = 0x08 '.'  (pad=0x06  calls=1093)
+  [B2] byte[ 9] = 0x08 '.'  (pad=0x07  calls=1096)
+  [B2] byte[ 8] = 0x08 '.'  (pad=0x08  calls=1290)
+  [B2] byte[ 7] = 0x7d '}'  (pad=0x09  calls=1519)
+  [B2] byte[ 6] = 0x33 '3'  (pad=0x0a  calls=1529)
+  [B2] byte[ 5] = 0x6c 'l'  (pad=0x0b  calls=1563)
+  [B2] byte[ 4] = 0x63 'c'  (pad=0x0c  calls=1717)
+  [B2] byte[ 3] = 0x34 '4'  (pad=0x0d  calls=1972)
+  [B2] byte[ 2] = 0x72 'r'  (pad=0x0e  calls=2146)
+  [B2] byte[ 1] = 0x30 '0'  (pad=0x0f  calls=2361)
+  [B2] byte[ 0] = 0x5f '_'  (pad=0x10  calls=2399)
+
+==============================================================
+  PLAINTEXT : CMPN{cbc_p4dding_0r4cl3}
+  HEX       : 434d504e7b6362635f70346464696e675f307234636c337d
+  Time      : 2486.3s
+==============================================================

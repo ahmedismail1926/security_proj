@@ -1,0 +1,12 @@
+Flag: CMPN{Hidd3n_in_pl4in_sigh7}
+
+Explanation:
+This challenge demonstrates LSB (Least Significant Bit) steganography.
+Images consist of pixels, where each pixel typically has Red, Green, and Blue (RGB) color channels represented by 8-bit values (0-255). 
+Because changing the lowest bit (the least significant bit) of these color values alters the color by an imperceptible amount to the human eye, it is a common place to hide secret data.
+
+To retrieve the flag:
+1. We iterated through the pixels in the image.
+2. We extracted the least significant bit (using a bitwise AND operation with 1, i.e., `value & 1`) from the Red channel of each pixel.
+3. We collected these bits sequentially and grouped them into chunks of 8 to form bytes.
+4. Finally, converting these bytes into ASCII characters revealed the hidden message.
