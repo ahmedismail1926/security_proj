@@ -150,17 +150,6 @@ def main():
             mp = getpass.getpass("Enter master password for new vault: ")
 
             import_finalize(receiver, mp, filename)
-        elif command == "import-final":
-            if len(sys.argv) != 4:
-                print("Usage: python main.py import-final <receiver> <filename>", file=sys.stderr)
-                sys.exit(1)
-
-            receiver = sys.argv[2]
-            filename = sys.argv[3]
-
-            mp = getpass.getpass("Enter master password for new vault: ")
-
-            import_finalize(receiver, mp, filename)
         # ── export ────────────────────────────────────────────────────────
         # elif command == "export":
         #     # Usage: python main.py export <sender_username> <receiver_username> <output_file>

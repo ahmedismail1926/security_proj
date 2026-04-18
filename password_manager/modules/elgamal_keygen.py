@@ -6,6 +6,7 @@ from utils.crypto_utils import random_in_range, mod_exp
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'params.json')
 KEYS_DIR = os.path.join(BASE_DIR, 'keys')
+EXPORTS_DIR = os.path.join(BASE_DIR, 'exports')
 
 
 def _load_params() -> dict:
@@ -22,7 +23,6 @@ def initialize_user(username: str) -> None:
     if os.path.exists(user_key_dir):
         raise ValueError("User already initialized.")
 
-    os.makedirs(user_key_dir)
 
     params = _load_params()
     p     = params['p']
@@ -32,13 +32,15 @@ def initialize_user(username: str) -> None:
     if not is_valid_generator(alpha, p):
         raise ValueError("Invalid generator alpha: fails basic validity checks.")
 
-    # Private key x ∈ [2, p-2]
-    # x=1 ⟹ y=alpha, trivially broken; secrets.randbelow is cryptographically
+    # Private key x in [2, p-2]
+    # x=1 -> y=alpha, trivially broken; secrets.randbelow is cryptographically
     # secure unlike random.randint.
     x = secrets.randbelow(p - 3) + 2   # uniform in [2, p-2]
 
     # Public key y = alpha^x mod p
     y = mod_exp(alpha, x, p)
+    
+    os.makedirs(user_key_dir)
 
     # ── Save private key (mode 0o600: owner read/write only) ───────────────
     priv_key_path = os.path.join(user_key_dir, 'private_key.json')
@@ -47,6 +49,7 @@ def initialize_user(username: str) -> None:
         "p":     str(p),
         "alpha": str(alpha)
     }
+
     with open(priv_key_path, 'w', encoding='utf-8') as f:
         json.dump(priv_data, f, indent=2)
     os.chmod(priv_key_path, 0o600)
@@ -91,7 +94,7 @@ def load_public_key(username: str) -> dict:
 def export_public_key(username: str, export_path: str) -> None:
     """Write the user's public key to an arbitrary path for sharing."""
     pub = load_public_key(username)
-    with open(export_path, 'w', encoding='utf-8') as f:
+    with open(os.path.join(EXPORTS_DIR, export_path), 'w', encoding='utf-8') as f:
         json.dump(pub, f, indent=2)
 
 
