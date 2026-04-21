@@ -1,0 +1,75 @@
+CTF 4 — Steganography
+======================
+Challenge: An image file (stego.png) looks like an ordinary photograph, but something
+is hidden inside using LSB (Least Significant Bit) steganography.
+
+Flag: CMPN{Hidd3n_in_pl4in_sigh7}
+
+## Thought Process
+
+The challenge explicitly states that LSB steganography is used. LSB steganography
+works by embedding secret data into the least significant bits of pixel values in
+an image. Since the least significant bit contributes only a value of 0 or 1 to a
+color channel (which ranges 0-255), changing it produces an imperceptible visual
+difference to the human eye — making it an effective hiding technique.
+
+My approach was to:
+  1. Open the image and iterate through every pixel in raster order (left to right,
+     top to bottom — the standard reading order for steganography).
+  2. Extract the LSB (bit 0) from each pixel's color channel.
+  3. Group the extracted bits into 8-bit chunks to form bytes.
+  4. Convert those bytes to ASCII characters.
+  5. Search the resulting text for the flag pattern "CMPN{...}".
+
+I also needed to consider which color channel(s) hold the hidden data. Common choices
+are Red only, all three RGB channels, or sometimes just Green or Blue. I decided to
+try each channel independently.
+
+## Steps Followed
+
+1. Loaded the stego.png image using the Pillow library and converted it to RGB mode
+   to ensure a consistent 3-channel pixel format.
+
+2. Wrote a function that, for a given color channel (0=Red, 1=Green, 2=Blue):
+   a) Iterates through every pixel in row-major order (y from 0 to height,
+      x from 0 to width).
+   b) Extracts the least significant bit of the specified channel using a bitwise
+      AND with 1:  bit = pixel[x, y][channel] & 1
+   c) Appends each bit to a string of bits.
+
+3. After collecting all bits, grouped them into chunks of 8 bits each and converted
+   every chunk to its corresponding ASCII character:
+      chr(int(bits[i:i+8], 2))
+
+4. Searched the resulting character stream for the "CMPN{" prefix followed by a
+   closing "}".
+
+5. Ran the extraction for channel 0 (Red) first. The flag was found in the Red
+   channel:
+
+       CMPN{Hidd3n_in_pl4in_sigh7}
+
+6. The flag was embedded starting from the very first pixels, so it appeared near
+   the beginning of the extracted bit stream.
+
+## Tools Used
+
+- Python 3 — main scripting language
+- Pillow (PIL) — for loading the PNG image and accessing individual pixel values
+- Bitwise AND operator (&) — for extracting the least significant bit from pixel values
+
+## How I Arrived at the Flag
+
+I implemented an LSB extraction algorithm that reads the image pixel-by-pixel in
+raster scan order (left-to-right, top-to-bottom). For each pixel, I extracted the
+least significant bit (bit 0) from the Red channel using the operation:
+pixel_value & 1. I collected all these bits into a long binary string, then split
+it into 8-bit groups to convert each group into an ASCII character. Scanning through
+the resulting text, I found the flag embedded in the Red channel:
+
+    CMPN{Hidd3n_in_pl4in_sigh7}
+
+This demonstrates how LSB steganography can hide arbitrary text data within an
+image without visually altering it. The single-bit change per pixel is far too
+subtle for the human eye to detect, but a simple programmatic extraction reveals
+the hidden message.

@@ -1,0 +1,101 @@
+CTF 5 — CBC Padding Oracle
+===========================
+Challenge: A website encrypts a secret using AES-CBC and exposes an oracle endpoint
+that reveals whether the padding of a decrypted ciphertext is valid or not. Exploit
+this information leak to recover the plaintext without knowing the encryption key.
+Target: http://cbc-ctf.westeurope.azurecontainer.io:5000/
+
+Flag: CMPN{cbc_p4dding_0r4cl3}
+
+## Thought Process
+
+This is a classic Padding Oracle Attack, first described by Serge Vaudenay in 2002.
+The vulnerability arises when a system reveals whether the PKCS#7 padding of a
+decrypted ciphertext is valid or not. Even though the attacker doesn't know the key,
+this single bit of information ("valid" vs "invalid" padding) is enough to fully
+decrypt any ciphertext, one byte at a time.
+
+The key insight is based on how CBC decryption works:
+  - Plaintext[i] = Decrypt(Ciphertext[i]) XOR Ciphertext[i-1]
+  - If we call Decrypt(Ciphertext[i]) the "intermediate value", then:
+    Plaintext[i] = Intermediate[i] XOR Ciphertext[i-1]
+  - By tampering with Ciphertext[i-1], we can control what the plaintext decrypts
+    to. If we find a tampered byte that makes the padding valid (e.g., produces
+    a \x01 at the last position), we can calculate the intermediate value, and
+    from that derive the real plaintext byte.
+
+The server provided 48 bytes of ciphertext (3 blocks of 16 bytes each):
+  - Block 0 (IV):  38d3ae899b34ebcdf9eb5a0bf4f1bb4a
+  - Block 1 (C1):  6ae9d1c7f6463090c10de6936dc79bf3
+  - Block 2 (C2):  de0dd507dc8988903711a0f9f7fb2294
+
+I needed to decrypt Block 1 (using IV as the previous block) and Block 2 (using
+C1 as the previous block).
+
+## Steps Followed
+
+1. Explored the website's API endpoints:
+   - POST /oracle — accepts {"ciphertext_hex": "<hex>"} and returns
+     {"valid_padding": true/false}
+   - POST /check_flag — accepts {"flag": "<flag>"} to verify the answer
+   - POST /encrypt — accepts {"plaintext": "<text>"} to encrypt data
+
+2. Performed a sanity check by sending the original ciphertext to /oracle.
+   It returned valid_padding: true, confirming the oracle is working.
+
+3. Implemented the byte-by-byte padding oracle attack:
+
+   For each block to decrypt (working right-to-left, byte 15 down to byte 0):
+   a) Set the target padding value: pad_val = 16 - byte_index
+      (For the last byte, valid padding = \x01; for the second-to-last = \x02, etc.)
+   b) For already-recovered intermediate bytes, set them to XOR with pad_val so
+      they produce the correct padding suffix.
+   c) Brute-force the target byte position (0-255 guesses), sending each tampered
+      ciphertext to the /oracle endpoint.
+   d) When the oracle returns "valid", the guess reveals the intermediate value:
+      intermediate[i] = guess XOR pad_val
+   e) Then the real plaintext byte is: plaintext[i] = intermediate[i] XOR prev_block[i]
+
+4. Added a false-positive check for the rightmost byte: when byte_idx == 15 and the
+   oracle returns valid, it could be that we hit a longer valid padding (e.g., \x02\x02
+   instead of \x01). To confirm, I flipped an adjacent byte and re-tested. If the
+   oracle still returns valid, it was a true \x01 padding.
+
+5. Decrypted Block 1 byte-by-byte (using IV as the previous block):
+   This revealed: CMPN{cbc_p4dding
+
+6. Decrypted Block 2 byte-by-byte (using C1 as the previous block):
+   This revealed: _0r4cl3} followed by 8 bytes of PKCS#7 padding (\x08 repeated 8 times).
+
+7. Stripped the PKCS#7 padding to get the final plaintext.
+
+8. Submitted the flag to /check_flag for verification.
+
+Total oracle calls: ~4,800 across both blocks. Total time: ~41 minutes (due to
+network latency for each HTTP request).
+
+## Tools Used
+
+- Python 3 — main scripting language
+- requests library — for making HTTP POST requests to the oracle endpoint
+- Manual implementation of the CBC padding oracle attack algorithm
+- Understanding of PKCS#7 padding scheme and AES-CBC mode
+
+## How I Arrived at the Flag
+
+I exploited the padding oracle vulnerability by systematically querying the /oracle
+endpoint with tampered ciphertexts. For each byte position (right to left), I
+brute-forced all 256 possible values for the previous ciphertext block's byte,
+checking which value produced valid PKCS#7 padding. A valid response reveals the
+intermediate decryption value, which I then XOR'd with the original previous block
+byte to recover the plaintext byte.
+
+Working through all 32 bytes across 2 ciphertext blocks (with ~256 oracle queries
+per byte in the worst case), I recovered the full plaintext:
+
+    CMPN{cbc_p4dding_0r4cl3}
+
+This attack demonstrates why padding oracles are dangerous: even a single bit of
+leaked information (valid vs. invalid padding) can completely break the
+confidentiality of CBC-mode encryption. The fix is to use authenticated encryption
+(e.g., AES-GCM) or to never reveal padding errors to the client.
