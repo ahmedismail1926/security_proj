@@ -1,0 +1,66 @@
+CTF 1 — Packet Analysis
+========================
+Challenge: A network capture file (traffic.pcapng) contains a secret flag that was
+transmitted during a suspicious TCP session. The flag was split across multiple TCP
+packets and base64-encoded before transmission.
+
+Flag: CMPN{pc4p_hidd3n_in_l3gi7_7r4ffic}
+
+## Thought Process
+
+When I first read the challenge description, I understood that:
+  1. The flag is hidden inside network traffic, specifically within TCP packets.
+  2. It was transmitted over port 4444 — a well-known port often associated with
+     reverse shells and suspicious activity (e.g., Metasploit's default).
+  3. The data is base64-encoded, meaning I need to extract the raw payload first,
+     then decode it.
+  4. The flag is split across multiple packets, so I need to reassemble them in order.
+
+My plan was to parse the pcapng file, filter for TCP traffic on port 4444, extract the
+payload from each relevant packet, concatenate the payloads, and finally base64-decode
+the result.
+
+## Steps Followed
+
+1. Opened the traffic.pcapng file using the Scapy library in Python to parse the
+   packet capture programmatically.
+
+2. Iterated through every packet in the capture and filtered for packets that:
+   - Contain a TCP layer AND an IP layer.
+   - Have either source port or destination port equal to 4444.
+   - Have a non-empty TCP payload.
+
+3. Collected the raw payload (bytes) from each matching packet into a list, preserving
+   the original packet order.
+
+4. Noticed that some packets contained control markers ("MSG:" and ":EOF") that
+   are not part of the actual encoded data. These are likely protocol framing used
+   by the sender to mark the beginning and end of the transmission. I filtered
+   these out before concatenation.
+
+5. Concatenated all the remaining payload chunks into a single base64 string.
+
+6. Decoded the base64 string using Python's base64.b64decode() function.
+
+7. The decoded output was the plaintext flag: CMPN{pc4p_hidd3n_in_l3gi7_7r4ffic}
+
+## Tools Used
+
+- Python 3 — main scripting language
+- Scapy (Python library) — for reading and parsing the .pcapng capture file,
+  filtering TCP packets, and extracting raw payload data
+- base64 module (Python standard library) — for decoding the base64-encoded flag
+
+## How I Arrived at the Flag
+
+Following the hint, I filtered the capture for TCP port 4444 traffic. Using Scapy's
+rdpcap() function, I loaded the entire capture and then looped through each packet
+checking for TCP packets on port 4444 that had payload data. I stored each payload
+in a list. After removing the framing markers ("MSG:" and ":EOF"), I joined all the
+payload fragments into one continuous base64 string. Running base64.b64decode() on
+that string produced the plaintext flag:
+
+    CMPN{pc4p_hidd3n_in_l3gi7_7r4ffic}
+
+This confirms that the attacker transmitted the flag in pieces over a suspicious TCP
+session on port 4444, using base64 encoding as a simple obfuscation technique.

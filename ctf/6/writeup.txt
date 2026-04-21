@@ -1,0 +1,78 @@
+CTF 6 — RSA Key Recovery
+=========================
+Challenge: You intercepted an encrypted message. Given the RSA public key parameters
+(n, e) and the ciphertext, recover the plaintext flag by factoring the modulus.
+
+Given:
+  n = 143991606075158483660871570161405209117
+  e = 65537
+  ciphertext = 34130411904650996210426832018051041635
+
+Flag: CMPN{f4c70r_m3}
+
+## Thought Process
+
+In RSA, the security relies on the difficulty of factoring the modulus n into its
+two prime factors p and q. If n is small enough to be factored, the entire scheme
+breaks because:
+  1. Knowing p and q, we can compute phi(n) = (p-1)(q-1)
+  2. With phi(n) and the public exponent e, we compute the private exponent:
+     d = e^(-1) mod phi(n)  (the modular inverse of e modulo phi)
+  3. With d, we can decrypt: plaintext = ciphertext^d mod n
+
+The given n is 128 bits (about 39 decimal digits), which is far too small for
+real-world RSA (which uses 2048+ bit keys). A modulus this small can be factored
+in seconds using online databases or simple trial division.
+
+## Steps Followed
+
+1. Examined the challenge.txt file, which provided n, e, and the ciphertext.
+
+2. Factored the modulus n. Given its small size (~128 bits), I looked it up
+   in an online factoring database (factordb.com). The factors are:
+     p = 11607228028223627369
+     q = 12405339649142310293
+   Verification: p * q = 143991606075158483660871570161405209117 = n  ✓
+
+3. Computed Euler's totient: phi(n) = (p-1) * (q-1)
+     phi(n) = (11607228028223627368) * (12405339649142310292)
+
+4. Computed the private exponent d as the modular inverse of e modulo phi(n):
+     d = pow(e, -1, phi(n))
+   Python 3.8+ supports the pow(base, -1, mod) syntax for modular inverse.
+
+5. Decrypted the ciphertext:
+     m = pow(ciphertext, d, n)
+   This computes ciphertext^d mod n, which gives the plaintext as an integer.
+
+6. Converted the integer m to bytes:
+     m_bytes = m.to_bytes((m.bit_length() + 7) // 8, 'big')
+   Then decoded the bytes as UTF-8 to get the flag string.
+
+7. Result: CMPN{f4c70r_m3}
+
+## Tools Used
+
+- Python 3 — main scripting language
+- Python's built-in pow() function — for modular exponentiation and modular inverse
+- int.to_bytes() — for converting the decrypted integer to a byte string
+- FactorDB (factordb.com) — online database for factoring the small RSA modulus
+
+## How I Arrived at the Flag
+
+The RSA modulus n was only 128 bits, making it trivially factorable. I obtained the
+prime factors p and q, then followed the standard RSA private key recovery process:
+
+  1. phi(n) = (p-1)(q-1)
+  2. d = modular_inverse(e, phi(n))
+  3. plaintext_int = ciphertext^d mod n
+  4. Convert integer to bytes -> UTF-8 string
+
+The decrypted plaintext:
+
+    CMPN{f4c70r_m3}
+
+This challenge illustrates why RSA key size matters. A 128-bit modulus can be
+factored almost instantly, while a 2048-bit or larger modulus remains computationally
+infeasible to factor with current technology. The flag itself ("factor me") is a
+nod to this vulnerability.

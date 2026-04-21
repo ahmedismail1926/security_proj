@@ -1,0 +1,74 @@
+CTF 3 — Bit Shifting
+=====================
+Challenge: A text file (shifted.txt) contains a sequence of decimal numbers. Each
+number represents a character that has been bit-shifted. Find the right operation
+to recover the original ASCII characters and reveal the flag.
+
+Data: 134 154 160 156 246 196 210 110 190 230 208 210 204 110 210 220 206 190 210 230 190 238 102 104 214 250
+Flag: CMPN{bi7_shif7ing_is_w34k}
+
+## Thought Process
+
+The challenge tells us that each decimal number represents an ASCII character that
+has been "bit-shifted." Bit shifting can mean either a left shift (<<) or a right
+shift (>>), by some number of positions. Since these are decimal values that encode
+printable ASCII characters (ASCII range 32-126), I needed to figure out:
+  1. The direction of the shift (left or right)
+  2. The number of positions shifted
+
+Looking at the first few numbers and knowing the flag likely starts with "CMPN{":
+  - 'C' = ASCII 67. The first number is 134.
+  - 134 / 2 = 67 = 'C' — this matches a left shift by 1!
+  - 'M' = ASCII 77. The second number is 154.
+  - 154 / 2 = 77 = 'M' — confirmed!
+
+So each character was left-shifted by 1 bit (i.e., multiplied by 2). To reverse it,
+I need to right-shift by 1 (i.e., divide by 2 or use >> 1).
+
+## Steps Followed
+
+1. Read the contents of shifted.txt: a single line of space-separated decimal numbers.
+
+2. Hypothesized that the encoding was a left bit-shift by 1 (equivalent to
+   multiplying each ASCII value by 2).
+
+3. Verified the hypothesis manually:
+   - 134 >> 1 = 67 = 'C'
+   - 154 >> 1 = 77 = 'M'
+   - 160 >> 1 = 80 = 'P'
+   - 156 >> 1 = 78 = 'N'
+   - 246 >> 1 = 123 = '{'
+   This spells "CMPN{" — the expected flag prefix!
+
+4. Wrote a Python script that:
+   a) Splits the data string into individual numbers
+   b) Converts each to an integer
+   c) Right-shifts each by 1 bit (n >> 1)
+   d) Converts the resulting value to an ASCII character using chr()
+
+5. The full decoded output: CMPN{bi7_shif7ing_is_w34k}
+
+## Tools Used
+
+- Python 3 — main scripting language
+- Built-in functions: int(), chr(), str.split()
+- Bitwise right-shift operator (>>)
+
+## How I Arrived at the Flag
+
+I started by examining the relationship between the encoded numbers and expected
+ASCII values. Since the flag format starts with "CMPN{", I checked if the first
+number (134) mapped to 'C' (67) through a simple operation. Dividing by 2 (or
+equivalently right-shifting by 1 bit) gave exactly 67. I confirmed this pattern
+held for the next several numbers. I then applied n >> 1 to every number in the
+sequence, converting each result to its ASCII character:
+
+    134>>1=C, 154>>1=M, 160>>1=P, 156>>1=N, 246>>1={, ...
+
+This produced the complete flag:
+
+    CMPN{bi7_shif7ing_is_w34k}
+
+The encoding was simply a 1-bit left shift on each ASCII character value, which is
+a trivially reversible operation — hence the flag's message about bit shifting
+being "weak."

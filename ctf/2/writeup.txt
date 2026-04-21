@@ -1,0 +1,72 @@
+CTF 2 — Image Manipulation
+============================
+Challenge: Two PNG images (Layer1.png and Layer2.png) each appear to be random noise
+on their own, but together they reveal a secret.
+
+Flag: CMPN{im4g3s-4s_k3y$}
+
+## Thought Process
+
+The description says each image looks like "random noise" individually, but together
+they reveal a secret. This immediately made me think of visual cryptography or
+pixel-level operations. In visual cryptography, a secret image is split into two
+"shares" that look like random noise. When combined using a specific mathematical
+operation (typically XOR), the original image is revealed.
+
+The key insight is that if you XOR two random-looking images that were created by
+splitting an original, the randomness cancels out and the original content appears.
+I decided to try several pixel-wise operations to see which one reveals the hidden
+message:
+  - XOR (most likely, as it's the standard in visual cryptography)
+  - Addition
+  - Subtraction
+  - Absolute Difference
+
+## Steps Followed
+
+1. Loaded both images (Layer1.png and Layer2.png) using the Python Imaging Library
+   (PIL/Pillow) and converted them to RGB mode to ensure consistent channel format.
+
+2. Converted both images to NumPy arrays so I could perform element-wise (pixel-by-pixel)
+   mathematical operations efficiently.
+
+3. Applied four different operations between the two image arrays:
+
+   a) XOR (bitwise_xor): For each pixel channel, computed arr1[x,y] XOR arr2[x,y].
+      This is the standard operation for visual cryptography.
+
+   b) Addition: Added the pixel values together, clamping to 255 max.
+
+   c) Subtraction: Subtracted one from the other, clamping to 0 min.
+
+   d) Absolute Difference: Computed |arr1 - arr2| for each pixel.
+
+4. Saved each result as a separate PNG image for visual inspection.
+
+5. Opened the resulting images. The XOR result (xor_result.png) clearly displayed
+   the flag text on a white background:
+
+       CMPN{im4g3s-4s_k3y$}
+
+   The other operations produced noisy or partially visible results, confirming
+   that XOR was the intended combining method.
+
+## Tools Used
+
+- Python 3 — main scripting language
+- Pillow (PIL) — for loading and saving PNG images
+- NumPy — for efficient pixel-wise array operations (XOR, addition, subtraction)
+
+## How I Arrived at the Flag
+
+I recognized that two random-noise images hiding a secret is a classic visual
+cryptography setup. I loaded both images as NumPy arrays and applied a bitwise
+XOR operation pixel-by-pixel across all three RGB channels. The XOR operation
+works because: if Layer1 = Original XOR Random, and Layer2 = Random, then
+Layer1 XOR Layer2 = Original XOR Random XOR Random = Original. The resulting
+XOR image clearly showed the flag text:
+
+    CMPN{im4g3s-4s_k3y$}
+
+I also tried addition, subtraction, and absolute difference as sanity checks,
+but XOR produced the clearest result, confirming it was the intended operation.
