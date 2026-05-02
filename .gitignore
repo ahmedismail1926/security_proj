@@ -24,3 +24,5 @@ password_manager/test_mod.py
 password_manager/test_prime.py
 
 ctf/CTF_DATA
+
+test.py

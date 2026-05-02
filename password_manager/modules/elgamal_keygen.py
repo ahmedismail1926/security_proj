@@ -28,17 +28,13 @@ def initialize_user(username: str) -> None:
     p     = params['p']
     alpha = params['alpha']
 
-    # Validate generator against the prime from config
+    # Verify if alpha is as a primitive root modulo for a prime number p
     if not is_valid_generator(alpha, p):
         raise ValueError("Invalid generator alpha: fails basic validity checks.")
+    
+    x = secrets.randbelow(p - 3) + 2   # Private key x in [2, p-2]
 
-    # Private key x in [2, p-2]
-    # x=1 -> y=alpha, trivially broken; secrets.randbelow is cryptographically
-    # secure unlike random.randint.
-    x = secrets.randbelow(p - 3) + 2   # uniform in [2, p-2]
-
-    # Public key y = alpha^x mod p
-    y = mod_exp(alpha, x, p)
+    y = mod_exp(alpha, x, p) # Public key y = alpha^x mod p
     
     os.makedirs(user_key_dir)
 
@@ -49,7 +45,6 @@ def initialize_user(username: str) -> None:
         "p":     str(p),
         "alpha": str(alpha)
     }
-
     with open(priv_key_path, 'w', encoding='utf-8') as f:
         json.dump(priv_data, f, indent=2)
     os.chmod(priv_key_path, 0o600)
