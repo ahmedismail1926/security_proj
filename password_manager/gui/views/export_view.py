@@ -2,11 +2,21 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import threading
 import os
-from modules.dh_export import export_vault, import_vault
-from modules.elgamal_keygen import load_public_key
+import shutil
+from modules.dh_export import (
+    export_step1,
+    export_step2,
+    export_finalize,
+    import_finalize
+)
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+EXPORTS_DIR = os.path.join(BASE_DIR, 'exports')
+
 
 def check_file(path: str) -> bool:
     return os.path.exists(path)
+
 
 class ExportView(ttk.Frame):
     def __init__(self, parent, controller):
@@ -14,29 +24,30 @@ class ExportView(ttk.Frame):
         self.controller = controller
         self.username = None
         self._master_password = None
-        
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+
+        self.grid_rowconfigure(0, weight=0)
+        self.grid_rowconfigure(1, weight=0)
+        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(3, weight=0)
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(3, weight=1)
-        
+
         title_label = ttk.Label(self, text="Vault Export / Import", font=("Helvetica", 16))
-        title_label.grid(row=1, column=1, columnspan=2, pady=20)
-        
+        title_label.grid(row=0, column=0, pady=(15, 5))
+
         self.notebook = ttk.Notebook(self)
-        self.notebook.grid(row=2, column=1, columnspan=2, sticky="nsew", padx=10, pady=10)
-        
+        self.notebook.grid(row=1, column=0, sticky="nsew", padx=10, pady=5, rowspan=2)
+
         self.export_frame = ttk.Frame(self.notebook)
         self.import_frame = ttk.Frame(self.notebook)
-        
-        self.notebook.add(self.export_frame, text="Export")
-        self.notebook.add(self.import_frame, text="Import")
-        
+
+        self.notebook.add(self.export_frame, text="Export (Sender)")
+        self.notebook.add(self.import_frame, text="Import (Receiver)")
+
         self.setup_export_tab()
         self.setup_import_tab()
-        
-        ttk.Button(self, text="Back", command=self.go_back).grid(row=4, column=1, columnspan=2, pady=10)
-        
+
+        ttk.Button(self, text="Back", command=self.go_back).grid(row=3, column=0, pady=10)
+
     def go_back(self):
         self._master_password = None
         self.username = None
@@ -46,192 +57,446 @@ class ExportView(ttk.Frame):
         self.username = username
         self._master_password = master_password
         if username:
-            self.sender_name_entry.config(state="normal")
-            self.sender_name_entry.delete(0, tk.END)
-            self.sender_name_entry.insert(0, username)
-            self.sender_name_entry.config(state="readonly")
-        
+            self.export_sender_entry.config(state="normal")
+            self.export_sender_entry.delete(0, tk.END)
+            self.export_sender_entry.insert(0, username)
+            self.export_sender_entry.config(state="readonly")
+
+    # ──────────────────────────────────────────────────────────────────────────
+    #  EXPORT TAB  (Sender / Device 1)
+    # ──────────────────────────────────────────────────────────────────────────
+
     def setup_export_tab(self):
-        for i in range(5):
-            self.export_frame.grid_columnconfigure(i, weight=1)
-            
-        ttk.Label(self.export_frame, text="Sender Username:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.sender_name_entry = ttk.Entry(self.export_frame, width=30, state="readonly")
-        self.sender_name_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        
-        ttk.Label(self.export_frame, text="Recipient Public Key:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        self.recipient_key_entry = ttk.Entry(self.export_frame, width=30)
-        self.recipient_key_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        ttk.Button(self.export_frame, text="Browse", command=self.browse_recipient_key).grid(row=1, column=2, padx=5, pady=5)
-        
-        ttk.Label(self.export_frame, text="Output File:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        self.output_file_entry = ttk.Entry(self.export_frame, width=30)
-        self.output_file_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        ttk.Button(self.export_frame, text="Browse", command=self.browse_output_file).grid(row=2, column=2, padx=5, pady=5)
-        
-        self.export_btn = ttk.Button(self.export_frame, text="Start Export", command=self.start_export)
-        self.export_btn.grid(row=4, column=0, columnspan=3, pady=10)
-        
+        # Use a single scrollable frame with two clearly labelled sections
+        self.export_frame.grid_columnconfigure(1, weight=1)
+
+        row = 0
+
+        # ── Common fields ────────────────────────────────────────────────────
+        ttk.Label(self.export_frame, text="Sender Username:").grid(
+            row=row, column=0, padx=5, pady=5, sticky="e")
+        self.export_sender_entry = ttk.Entry(self.export_frame, width=30, state="readonly")
+        self.export_sender_entry.grid(row=row, column=1, padx=5, pady=5, sticky="w")
+        row += 1
+
+        # ── STEP 1: Initiate DH Exchange ─────────────────────────────────────
+        step1_sep = ttk.Separator(self.export_frame, orient="horizontal")
+        step1_sep.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(10, 5))
+        row += 1
+
+        ttk.Label(self.export_frame, text="── Step 1: Initiate DH Exchange ──",
+                  font=("Helvetica", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, pady=(0, 5))
+        row += 1
+
+        ttk.Label(self.export_frame, text="Receiver Username:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.export_receiver_entry = ttk.Entry(self.export_frame, width=30)
+        self.export_receiver_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        row += 1
+
+        ttk.Label(self.export_frame, text="Session Name:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.export_session_entry = ttk.Entry(self.export_frame, width=30)
+        self.export_session_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        row += 1
+
+        self.step1_btn = ttk.Button(self.export_frame, text="Start DH Exchange (Step 1)",
+                                    command=self.do_export_step1)
+        self.step1_btn.grid(row=row, column=0, columnspan=3, pady=5)
+        row += 1
+
+        # ── STEP 2: Finalize Export ──────────────────────────────────────────
+        step2_sep = ttk.Separator(self.export_frame, orient="horizontal")
+        step2_sep.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(10, 5))
+        row += 1
+
+        ttk.Label(self.export_frame, text="── Step 2: Finalize Export ──",
+                  font=("Helvetica", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, pady=(0, 5))
+        row += 1
+
+        ttk.Label(self.export_frame,
+                  text="After the receiver processes Step 1 and sends back the\n"
+                       "step2 response file, browse to it and finalize the export.",
+                  justify="left").grid(
+            row=row, column=0, columnspan=3, padx=10, pady=3)
+        row += 1
+
+        ttk.Label(self.export_frame, text="Step 2 File:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.step2_file_entry = ttk.Entry(self.export_frame, width=30)
+        self.step2_file_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        ttk.Button(self.export_frame, text="Browse",
+                   command=self.browse_step2_file).grid(row=row, column=2, padx=5, pady=3)
+        row += 1
+
+        self.finalize_btn = ttk.Button(self.export_frame, text="Finalize Export (Step 2)",
+                                       command=self.do_export_finalize)
+        self.finalize_btn.grid(row=row, column=0, columnspan=3, pady=5)
+        row += 1
+
+        # ── Status area ─────────────────────────────────────────────────────
         self.export_status = tk.Text(self.export_frame, height=5, state="disabled")
-        self.export_status.grid(row=5, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+        self.export_status.grid(row=row, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+
+    def browse_step2_file(self):
+        file = filedialog.askopenfilename(
+            title="Select Step 2 Response File",
+            initialdir=EXPORTS_DIR,
+            filetypes=[("JSON files", "*.json")])
+        if file:
+            self.step2_file_entry.delete(0, tk.END)
+            self.step2_file_entry.insert(0, file)
 
     def update_export_status(self, text):
         self.after(0, lambda: self._update_text(self.export_status, text))
-        
+
     def _update_text(self, widget, text):
         widget.config(state="normal")
         widget.insert(tk.END, text + "\n")
         widget.see(tk.END)
         widget.config(state="disabled")
 
-    def browse_recipient_key(self):
-        file = filedialog.askopenfilename(title="Select Recipient Public Key", filetypes=[("JSON files", "*.json")])
-        if file:
-            self.recipient_key_entry.delete(0, tk.END)
-            self.recipient_key_entry.insert(0, file)
+    def _clear_text(self, widget):
+        widget.config(state="normal")
+        widget.delete(1.0, tk.END)
+        widget.config(state="disabled")
 
-    def browse_output_file(self):
-        file = filedialog.asksaveasfilename(title="Save Export File As",
-                                           defaultextension=".json",
-                                           filetypes=[("JSON files", "*.json")])
-        if file:
-            self.output_file_entry.delete(0, tk.END)
-            self.output_file_entry.insert(0, file)
-
-    def start_export(self):
+    # ── Export Step 1 ─────────────────────────────────────────────────────────
+    def do_export_step1(self):
         sender = self.username
-        recipient_key = self.recipient_key_entry.get().strip()
-        out_file = self.output_file_entry.get().strip()
-        mp = self._master_password
-        
-        if not sender or not recipient_key or not out_file or not mp:
-            messagebox.showerror("Error", "All fields required.")
+        receiver = self.export_receiver_entry.get().strip()
+        session = self.export_session_entry.get().strip()
+
+        if not sender:
+            messagebox.showerror("Error", "Sender username is required.")
             return
-            
-        if not check_file(recipient_key):
-            messagebox.showerror("Error", "Recipient public key file not found.")
+        if not receiver:
+            messagebox.showerror("Error", "Receiver username is required.")
             return
-            
-        recipient_username = os.path.basename(os.path.dirname(recipient_key))
-        if not recipient_username:
-            messagebox.showerror("Error", "Cannot parse recipient username from key path")
+        if not session:
+            messagebox.showerror("Error", "Session name is required.")
             return
-            
-        export_filename = os.path.basename(out_file).replace('.json', '')
-        
-        self.export_btn.config(state="disabled")
-        self.export_status.config(state="normal")
-        self.export_status.delete(1.0, tk.END)
-        self.export_status.config(state="disabled")
-        
-        def run_export():
-            self.update_export_status("Generating DH keys...")
+
+        self.step1_btn.config(state="disabled")
+        self._clear_text(self.export_status)
+
+        def run():
+            self.update_export_status("Generating ephemeral DH key pair...")
             try:
-                export_vault(sender, mp, recipient_username, export_filename)
-                self.update_export_status("Signing...")
-                self.update_export_status("Encrypting payload...")
-                self.update_export_status("Done.")
-                self.after(0, lambda: messagebox.showinfo("Success", f"Export package saved to {out_file}"))
+                export_step1(sender, receiver, session)
+                step1_path = os.path.join(EXPORTS_DIR, session + "_step1.json")
+                self.update_export_status(f"DH public key signed and saved.")
+                self.update_export_status(f"Output: {step1_path}")
+                self.update_export_status("")
+                self.update_export_status("Send the _step1.json file to the receiver.")
+                self.update_export_status("Wait for the receiver's _step2.json response,")
+                self.update_export_status("then proceed to Step 2 above.")
+                self.after(0, lambda: messagebox.showinfo(
+                    "Step 1 Complete",
+                    f"DH exchange file created:\n{step1_path}\n\n"
+                    "Send this file to the receiver, then wait for their Step 2 response."))
             except Exception as e:
-                self.after(0, lambda e=e: messagebox.showerror("Export Error", str(e)))
+                self.after(0, lambda e=e: messagebox.showerror("Step 1 Error", str(e)))
                 self.update_export_status(f"Error: {str(e)}")
             finally:
-                self.after(0, lambda: self.export_btn.config(state="normal"))
-                
-        threading.Thread(target=run_export, daemon=True).start()
+                self.after(0, lambda: self.step1_btn.config(state="normal"))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    # ── Export Finalize ───────────────────────────────────────────────────────
+    def do_export_finalize(self):
+        sender = self.username
+        mp = self._master_password
+        step2_file = self.step2_file_entry.get().strip()
+        session = self.export_session_entry.get().strip()
+
+        if not sender or not mp:
+            messagebox.showerror("Error", "Sender and master password are required.")
+            return
+        if not session:
+            messagebox.showerror("Error", "Session name is required (same as Step 1).")
+            return
+        if not step2_file:
+            messagebox.showerror("Error", "Please browse to the receiver's Step 2 response file.")
+            return
+        if not check_file(step2_file):
+            messagebox.showerror("Error", "Step 2 response file not found.")
+            return
+
+        # Copy the step2 file into exports dir if it isn't already there
+        expected_name = session + "_step2.json"
+        expected_path = os.path.join(EXPORTS_DIR, expected_name)
+        if os.path.abspath(step2_file) != os.path.abspath(expected_path):
+            os.makedirs(EXPORTS_DIR, exist_ok=True)
+            shutil.copy2(step2_file, expected_path)
+
+        self.finalize_btn.config(state="disabled")
+        self._clear_text(self.export_status)
+
+        def run():
+            self.update_export_status("Verifying receiver's DH public key signature...")
+            try:
+                export_finalize(sender, mp, session)
+                final_path = os.path.join(EXPORTS_DIR, session + "_final.json")
+                self.update_export_status("Receiver's DH key verified.")
+                self.update_export_status("Shared secret computed.")
+                self.update_export_status("Vault decrypted, re-encrypted with session key.")
+                self.update_export_status("Payload signed.")
+                self.update_export_status(f"Output: {final_path}")
+                self.update_export_status("")
+                self.update_export_status("Send the _final.json file to the receiver.")
+                self.after(0, lambda: messagebox.showinfo(
+                    "Export Complete",
+                    f"Encrypted vault package created:\n{final_path}\n\n"
+                    "Send this file to the receiver to complete the import."))
+            except Exception as e:
+                self.after(0, lambda e=e: messagebox.showerror("Finalize Error", str(e)))
+                self.update_export_status(f"Error: {str(e)}")
+            finally:
+                self.after(0, lambda: self.finalize_btn.config(state="normal"))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    # ──────────────────────────────────────────────────────────────────────────
+    #  IMPORT TAB  (Receiver / Device 2)
+    # ──────────────────────────────────────────────────────────────────────────
 
     def setup_import_tab(self):
-        for i in range(5):
-            self.import_frame.grid_columnconfigure(i, weight=1)
-            
-        ttk.Label(self.import_frame, text="Recipient Username:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.recipient_name_entry = ttk.Entry(self.import_frame, width=30)
-        self.recipient_name_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        
-        ttk.Label(self.import_frame, text="Export File:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        self.import_file_entry = ttk.Entry(self.import_frame, width=30)
-        self.import_file_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        ttk.Button(self.import_frame, text="Browse", command=self.browse_import_file).grid(row=1, column=2, padx=5, pady=5)
-        
-        ttk.Label(self.import_frame, text="Sender Public Key:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        self.sender_key_entry = ttk.Entry(self.import_frame, width=30)
-        self.sender_key_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        ttk.Button(self.import_frame, text="Browse", command=self.browse_sender_key).grid(row=2, column=2, padx=5, pady=5)
-        
-        ttk.Label(self.import_frame, text="New Master Password:").grid(row=3, column=0, padx=5, pady=5, sticky="e")
-        self.import_mp_entry = ttk.Entry(self.import_frame, width=30, show="*")
-        self.import_mp_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
-        
-        ttk.Label(self.import_frame, text="Confirm Master Password:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
-        self.import_mp_confirm_entry = ttk.Entry(self.import_frame, width=30, show="*")
-        self.import_mp_confirm_entry.grid(row=4, column=1, padx=5, pady=5, sticky="w")
-        
-        self.import_btn = ttk.Button(self.import_frame, text="Start Import", command=self.start_import)
-        self.import_btn.grid(row=5, column=0, columnspan=3, pady=10)
-        
-        self.import_status = tk.Text(self.import_frame, height=5, state="disabled")
-        self.import_status.grid(row=6, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+        self.import_frame.grid_columnconfigure(1, weight=1)
 
-    def browse_import_file(self):
-        file = filedialog.askopenfilename(title="Select Export File", filetypes=[("JSON files", "*.json")])
+        row = 0
+
+        # ── Common field ─────────────────────────────────────────────────────
+        ttk.Label(self.import_frame, text="Receiver Username:").grid(
+            row=row, column=0, padx=5, pady=5, sticky="e")
+        self.import_receiver_entry = ttk.Entry(self.import_frame, width=30)
+        self.import_receiver_entry.grid(row=row, column=1, padx=5, pady=5, sticky="w")
+        row += 1
+
+        # ── STEP 1: Respond to DH Exchange ────────────────────────────────────
+        step1_sep = ttk.Separator(self.import_frame, orient="horizontal")
+        step1_sep.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(10, 5))
+        row += 1
+
+        ttk.Label(self.import_frame, text="── Step 1: Respond to DH Exchange ──",
+                  font=("Helvetica", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, pady=(0, 5))
+        row += 1
+
+        ttk.Label(self.import_frame,
+                  text="Browse to the _step1.json file received from the sender.",
+                  justify="left").grid(
+            row=row, column=0, columnspan=3, padx=10, pady=3)
+        row += 1
+
+        ttk.Label(self.import_frame, text="Step 1 File:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.import_step1_file_entry = ttk.Entry(self.import_frame, width=30)
+        self.import_step1_file_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        ttk.Button(self.import_frame, text="Browse",
+                   command=self.browse_import_step1_file).grid(row=row, column=2, padx=5, pady=3)
+        row += 1
+
+        ttk.Label(self.import_frame, text="Session Name:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.import_session_entry = ttk.Entry(self.import_frame, width=30)
+        self.import_session_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        row += 1
+
+        self.import_step1_btn = ttk.Button(self.import_frame,
+                                           text="Process & Respond (Step 1)",
+                                           command=self.do_import_step1)
+        self.import_step1_btn.grid(row=row, column=0, columnspan=3, pady=5)
+        row += 1
+
+        # ── STEP 2: Import Vault ─────────────────────────────────────────────
+        step2_sep = ttk.Separator(self.import_frame, orient="horizontal")
+        step2_sep.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(10, 5))
+        row += 1
+
+        ttk.Label(self.import_frame, text="── Step 2: Decrypt & Import Vault ──",
+                  font=("Helvetica", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, pady=(0, 5))
+        row += 1
+
+        ttk.Label(self.import_frame,
+                  text="After the sender finalizes, browse to the _final.json file\n"
+                       "and enter a master password for your new vault.",
+                  justify="left").grid(
+            row=row, column=0, columnspan=3, padx=10, pady=3)
+        row += 1
+
+        ttk.Label(self.import_frame, text="Final File:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.import_final_file_entry = ttk.Entry(self.import_frame, width=30)
+        self.import_final_file_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        ttk.Button(self.import_frame, text="Browse",
+                   command=self.browse_import_final_file).grid(row=row, column=2, padx=5, pady=3)
+        row += 1
+
+        ttk.Label(self.import_frame, text="New Master Password:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.import_mp_entry = ttk.Entry(self.import_frame, width=30, show="*")
+        self.import_mp_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        row += 1
+
+        ttk.Label(self.import_frame, text="Confirm Password:").grid(
+            row=row, column=0, padx=5, pady=3, sticky="e")
+        self.import_mp_confirm_entry = ttk.Entry(self.import_frame, width=30, show="*")
+        self.import_mp_confirm_entry.grid(row=row, column=1, padx=5, pady=3, sticky="w")
+        row += 1
+
+        self.import_step2_btn = ttk.Button(self.import_frame,
+                                           text="Import Vault (Step 2)",
+                                           command=self.do_import_step2)
+        self.import_step2_btn.grid(row=row, column=0, columnspan=3, pady=5)
+        row += 1
+
+        # ── Status area ─────────────────────────────────────────────────────
+        self.import_status = tk.Text(self.import_frame, height=5, state="disabled")
+        self.import_status.grid(row=row, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+
+    def browse_import_step1_file(self):
+        file = filedialog.askopenfilename(
+            title="Select Step 1 File from Sender",
+            initialdir=EXPORTS_DIR,
+            filetypes=[("JSON files", "*.json")])
         if file:
-            self.import_file_entry.delete(0, tk.END)
-            self.import_file_entry.insert(0, file)
-            
-    def browse_sender_key(self):
-        file = filedialog.askopenfilename(title="Select Sender Public Key", filetypes=[("JSON files", "*.json")])
+            self.import_step1_file_entry.delete(0, tk.END)
+            self.import_step1_file_entry.insert(0, file)
+            # Auto-fill session name from filename
+            basename = os.path.basename(file)
+            if basename.endswith("_step1.json"):
+                session = basename.replace("_step1.json", "")
+                self.import_session_entry.delete(0, tk.END)
+                self.import_session_entry.insert(0, session)
+
+    def browse_import_final_file(self):
+        file = filedialog.askopenfilename(
+            title="Select Final Export File",
+            initialdir=EXPORTS_DIR,
+            filetypes=[("JSON files", "*.json")])
         if file:
-            self.sender_key_entry.delete(0, tk.END)
-            self.sender_key_entry.insert(0, file)
-            
+            self.import_final_file_entry.delete(0, tk.END)
+            self.import_final_file_entry.insert(0, file)
+
     def update_import_status(self, text):
         self.after(0, lambda: self._update_text(self.import_status, text))
 
-    def start_import(self):
-        recipient = self.recipient_name_entry.get().strip()
-        export_file = self.import_file_entry.get().strip()
-        sender_key = self.sender_key_entry.get().strip()
+    # ── Import Step 1: Respond to DH Exchange ─────────────────────────────────
+    def do_import_step1(self):
+        receiver = self.import_receiver_entry.get().strip()
+        step1_file = self.import_step1_file_entry.get().strip()
+        session = self.import_session_entry.get().strip()
+
+        if not receiver:
+            messagebox.showerror("Error", "Receiver username is required.")
+            return
+        if not step1_file:
+            messagebox.showerror("Error", "Please browse to the Step 1 file from the sender.")
+            return
+        if not session:
+            messagebox.showerror("Error", "Session name is required.")
+            return
+        if not check_file(step1_file):
+            messagebox.showerror("Error", "Step 1 file not found.")
+            return
+
+        # Copy step1 file into exports dir if needed
+        expected_name = session + "_step1.json"
+        expected_path = os.path.join(EXPORTS_DIR, expected_name)
+        if os.path.abspath(step1_file) != os.path.abspath(expected_path):
+            os.makedirs(EXPORTS_DIR, exist_ok=True)
+            shutil.copy2(step1_file, expected_path)
+
+        self.import_step1_btn.config(state="disabled")
+        self._clear_text(self.import_status)
+
+        def run():
+            self.update_import_status("Verifying sender's DH public key signature...")
+            try:
+                export_step2(receiver, session)
+                step2_path = os.path.join(EXPORTS_DIR, session + "_step2.json")
+                self.update_import_status("Sender's DH key verified.")
+                self.update_import_status("Generated ephemeral DH key pair.")
+                self.update_import_status("Shared secret computed and saved.")
+                self.update_import_status("DH response signed.")
+                self.update_import_status(f"Output: {step2_path}")
+                self.update_import_status("")
+                self.update_import_status("Send the _step2.json file back to the sender.")
+                self.update_import_status("Wait for the sender's _final.json, then proceed to Step 2.")
+                self.after(0, lambda: messagebox.showinfo(
+                    "Step 1 Complete",
+                    f"DH response file created:\n{step2_path}\n\n"
+                    "Send this file back to the sender and wait for the final export file."))
+            except Exception as e:
+                self.after(0, lambda e=e: messagebox.showerror("Import Step 1 Error", str(e)))
+                self.update_import_status(f"Error: {str(e)}")
+            finally:
+                self.after(0, lambda: self.import_step1_btn.config(state="normal"))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    # ── Import Step 2: Decrypt & Import ───────────────────────────────────────
+    def do_import_step2(self):
+        receiver = self.import_receiver_entry.get().strip()
+        final_file = self.import_final_file_entry.get().strip()
+        session = self.import_session_entry.get().strip()
         mp = self.import_mp_entry.get()
         mp_conf = self.import_mp_confirm_entry.get()
-        
+
+        # Clear password fields immediately
         self.import_mp_entry.delete(0, tk.END)
         self.import_mp_confirm_entry.delete(0, tk.END)
-        
-        if not recipient or not export_file or not sender_key or not mp or not mp_conf:
-            messagebox.showerror("Error", "All fields required.")
+
+        if not receiver:
+            messagebox.showerror("Error", "Receiver username is required.")
             return
-            
+        if not final_file:
+            messagebox.showerror("Error", "Please browse to the final export file.")
+            return
+        if not session:
+            messagebox.showerror("Error", "Session name is required (same as Step 1).")
+            return
+        if not mp or not mp_conf:
+            messagebox.showerror("Error", "Master password and confirmation are required.")
+            return
         if mp != mp_conf:
             messagebox.showerror("Error", "Passwords do not match.")
             return
-            
-        if not check_file(export_file):
-            messagebox.showerror("Error", "Export package not found.")
+        if not check_file(final_file):
+            messagebox.showerror("Error", "Final export file not found.")
             return
-            
-        if not check_file(sender_key):
-            messagebox.showerror("Error", "Sender public key not found.")
-            return
-            
-        import_filename = os.path.basename(export_file).replace('.json', '')
-        
-        self.import_btn.config(state="disabled")
-        self.import_status.config(state="normal")
-        self.import_status.delete(1.0, tk.END)
-        self.import_status.config(state="disabled")
-        
-        def run_import():
-            self.update_import_status("Starting import...")
+
+        # Copy the final file into exports dir if needed
+        expected_name = session + "_final.json"
+        expected_path = os.path.join(EXPORTS_DIR, expected_name)
+        if os.path.abspath(final_file) != os.path.abspath(expected_path):
+            os.makedirs(EXPORTS_DIR, exist_ok=True)
+            shutil.copy2(final_file, expected_path)
+
+        self.import_step2_btn.config(state="disabled")
+        self._clear_text(self.import_status)
+
+        def run():
+            self.update_import_status("Loading shared secret...")
             try:
-                import_vault(recipient, mp, import_filename)
-                self.update_import_status("Verifying signatures...")
-                self.update_import_status("Decrypted and validated successfully.")
-                self.update_import_status("Done.")
-                self.after(0, lambda: messagebox.showinfo("Success", "Vault imported successfully."))
+                import_finalize(receiver, mp, session)
+                self.update_import_status("Sender's payload signature verified.")
+                self.update_import_status("Payload decrypted with session key.")
+                self.update_import_status("Vault re-encrypted with new master password.")
+                self.update_import_status("Vault re-signed with receiver's private key.")
+                self.update_import_status("Import complete!")
+                self.after(0, lambda: messagebox.showinfo(
+                    "Import Complete",
+                    "Vault imported and re-encrypted successfully.\n\n"
+                    "You can now access the vault with your new master password."))
             except Exception as e:
                 self.after(0, lambda e=e: messagebox.showerror("Import Error", str(e)))
                 self.update_import_status(f"Error: {str(e)}")
             finally:
-                self.after(0, lambda: self.import_btn.config(state="normal"))
-                
-        threading.Thread(target=run_import, daemon=True).start()
+                self.after(0, lambda: self.import_step2_btn.config(state="normal"))
+
+        threading.Thread(target=run, daemon=True).start()

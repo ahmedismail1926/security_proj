@@ -11,16 +11,6 @@ from modules.dh_export import (
     import_finalize
 )
 
-def _extract_username_from_path(key_path: str) -> str:
-    """Extract the username directory component from a key path.
-
-    Example: keys/bob/public_key.json  →  'bob'
-    """
-    parts = key_path.replace('\\', '/').split('/')
-    if len(parts) >= 2:
-        return parts[-2]
-    return ""
-
 
 def main():
     if len(sys.argv) < 2:
@@ -45,7 +35,7 @@ def main():
         elif command == "export-key":
             if len(sys.argv) != 4:
                 print("Usage: python main.py export-key <username> <output_path>",
-                      file=sys.stderr)
+                    file=sys.stderr)
                 sys.exit(1)
             username    = sys.argv[2]
             output_path = sys.argv[3]
@@ -69,7 +59,7 @@ def main():
         elif command == "get":
             if len(sys.argv) != 4:
                 print("Usage: python main.py get <username> <website>",
-                      file=sys.stderr)
+                    file=sys.stderr)
                 sys.exit(1)
             username = sys.argv[2]
             website  = sys.argv[3]

@@ -11,25 +11,25 @@ from modules.vault_manager import _decrypt_vault, _encrypt_and_save
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPORTS_DIR = os.path.join(BASE_DIR, 'exports')
 
+# Sender generates ephemeral DH key, signs it, and sends to receiver
 def export_step1(sender_username: str, receiver_username: str, filename: str):
     sender_priv = load_private_key(sender_username)
-    receiver_pub = load_public_key(receiver_username)
 
     p = sender_priv['p']
     alpha = sender_priv['alpha']
 
     # Generate ephemeral DH key
-    a = random_in_range(2, p - 2)
-    A = mod_exp(alpha, a, p)
+    X_A = random_in_range(2, p - 2) # Generates Private Key X_A
+    Y_A = mod_exp(alpha, X_A, p) # Computes Public Key Y_A
 
-    # Sign A
-    A_bytes = int_to_bytes(A)
-    r, s = sign(A_bytes, sender_priv)
+    # Sign Y_A
+    Y_A_bytes = int_to_bytes(Y_A)
+    r, s = sign(Y_A_bytes, sender_priv)
 
     data = {
         "sender": sender_username,
         "receiver": receiver_username,
-        "A": str(A),
+        "Y_A": str(Y_A),
         "sig": {"r": str(r), "s": str(s)}
     }
 
@@ -39,12 +39,13 @@ def export_step1(sender_username: str, receiver_username: str, filename: str):
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
 
-    # Save 'a' locally (temporary)
+    # Save 'X_A' locally (temporary)
     with open(os.path.join(EXPORTS_DIR, filename + "_secret.json"), "w") as f:
-        json.dump({"a": str(a)}, f)
+        json.dump({"X_A": str(X_A)}, f)
 
     print("Step 1 complete → send file to receiver")
 
+# Receiver verifies sender's DH public key, generates their own DH key, computes shared secret, and sends back to sender
 def export_step2(receiver_username: str, filename: str):
     receiver_priv = load_private_key(receiver_username)
 
@@ -56,33 +57,33 @@ def export_step2(receiver_username: str, filename: str):
     sender = data["sender"]
     sender_pub = load_public_key(sender)
 
-    A = int(data["A"])
+    Y_A = int(data["Y_A"])
     r = int(data["sig"]["r"])
     s = int(data["sig"]["s"])
 
-    # Verify A
-    if not verify(int_to_bytes(A), (r, s), sender_pub):
+    # Verify Y_A
+    if not verify(int_to_bytes(Y_A), (r, s), sender_pub):
         raise ValueError("Invalid DH key from sender")
 
     p = receiver_priv['p']
     alpha = receiver_priv['alpha']
 
     # Generate receiver DH key
-    b = random_in_range(2, p - 2)
-    B = mod_exp(alpha, b, p)
+    X_B = random_in_range(2, p - 2)
+    Y_B = mod_exp(alpha, X_B, p)
 
     # Compute shared secret
-    K = mod_exp(A, b, p)
+    K = mod_exp(Y_A, X_B, p)
 
     # Save K locally
     with open(os.path.join(EXPORTS_DIR, filename + "_receiver_secret.json"), "w") as f:
         json.dump({"K": str(K)}, f)
 
-    # Sign B
-    r2, s2 = sign(int_to_bytes(B), receiver_priv)
+    # Sign Y_B
+    r2, s2 = sign(int_to_bytes(Y_B), receiver_priv)
 
     response = {
-        "B": str(B),
+        "Y_B": str(Y_B),
         "sig": {"r": str(r2), "s": str(s2)}
     }
 
@@ -92,25 +93,21 @@ def export_step2(receiver_username: str, filename: str):
     print("Step 2 complete → send back to sender")
 
 
+# Sender verifies receiver's DH public key, computes shared secret, encrypts vault with session key, signs payload, and finalizes export
 def export_finalize(sender_username: str, master_password: str, filename: str):
     sender_priv = load_private_key(sender_username)
 
-    # Load saved a
+    # Load saved X_A
     with open(os.path.join(EXPORTS_DIR, filename + "_secret.json")) as f:
-        a = int(json.load(f)["a"])
+        X_A = int(json.load(f)["X_A"])
 
-    # Load B
+    # Load Y_B and signature
     with open(os.path.join(EXPORTS_DIR, filename + "_step2.json")) as f:
         data = json.load(f)
 
-    B = int(data["B"])
+    Y_B = int(data["Y_B"])
     r = int(data["sig"]["r"])
     s = int(data["sig"]["s"])
-
-    step2_path = os.path.join(EXPORTS_DIR, filename + "_step2.json")
-
-    with open(step2_path, "r") as f:
-        step2_data = json.load(f)
 
     # sender is known
     # receiver must come from step1 or be stored consistently
@@ -123,14 +120,14 @@ def export_finalize(sender_username: str, master_password: str, filename: str):
     sender_username = step1_data["sender"]    
     receiver_pub = load_public_key(receiver_username)
 
-    # Verify B
-    if not verify(int_to_bytes(B), (r, s), receiver_pub):
+    # Verify Y_B
+    if not verify(int_to_bytes(Y_B), (r, s), receiver_pub):
         raise ValueError("Invalid DH response")
 
     p = sender_priv['p']
 
     # Compute shared secret
-    K = mod_exp(B, a, p)
+    K = mod_exp(Y_B, X_A, p)
     session_key = sha256_bytes(int_to_bytes(K))
 
     # Decrypt vault
@@ -158,6 +155,7 @@ def export_finalize(sender_username: str, master_password: str, filename: str):
     print("Final export ready → send to receiver")
 
 
+# Receiver verifies payload, decrypts with session key, and saves vault under receiver's ownership
 def import_finalize(receiver_username: str, master_password: str, filename: str):
     receiver_priv = load_private_key(receiver_username)
 
@@ -243,37 +241,36 @@ def export_vault(sender_username: str,
     p     = sender_priv['p']
     alpha = sender_priv['alpha']
 
-    # ── 1. Generate sender's ephemeral DH keypair ──────────────────────────
-    a = random_in_range(2, p - 2)
-    A = mod_exp(alpha, a, p)
+    # Generate sender's ephemeral DH keypair 
+    X_A = random_in_range(2, p - 2)
+    Y_A = mod_exp(alpha, X_A, p)
 
-    # ── 2. Compute shared secret and derive session key ────────────────────
-    # K = y_receiver ^ a mod p  (see docstring for proof of symmetry)
-    K = mod_exp(receiver_pub['y'], a, p)
+    # Compute shared secret and derive session key  K = y_receiver ^ a mod p  
+    K = mod_exp(receiver_pub['y'], X_A, p)
     session_key = sha256_bytes(int_to_bytes(K))   # 32-byte AES-256 key
 
-    # ── 3. Sign sender's ephemeral DH public key ───────────────────────────
-    A_bytes = int_to_bytes(A)
-    dh_sig_r, dh_sig_s = sign(A_bytes, sender_priv)
+    # Sign sender's ephemeral DH public key 
+    Y_A_bytes = int_to_bytes(Y_A)
+    dh_sig_r, dh_sig_s = sign(Y_A_bytes, sender_priv)
 
-    # ── 4. Decrypt vault with master password ──────────────────────────────
-    entries       = _decrypt_vault(sender_username, sender_master_password)
+    # Decrypt vault with master password
+    entries  = _decrypt_vault(sender_username, sender_master_password)
     payload_bytes = json.dumps(entries).encode('utf-8')
 
-    # ── 5. Encrypt payload with DH session key (AES-256-GCM) ──────────────
+    # Encrypt payload with DH session key
     cipher              = AES.new(session_key, AES.MODE_GCM)
     ciphertext, tag     = cipher.encrypt_and_digest(payload_bytes)
     nonce               = cipher.nonce
     raw_encrypted       = nonce + tag + ciphertext
     encrypted_payload_b64 = base64.b64encode(raw_encrypted).decode('utf-8')
 
-    # ── 6. Sign the encrypted payload ──────────────────────────────────────
+    # Sign the encrypted payload
     payload_sig_r, payload_sig_s = sign(raw_encrypted, sender_priv)
 
     export_data = {
         "sender_username":   sender_username,
         "receiver_username": receiver_username,
-        "dh_public_key":     str(A),
+        "dh_public_key":     str(Y_A),
         "dh_signature": {
             "r": str(dh_sig_r),
             "s": str(dh_sig_s)
@@ -320,7 +317,7 @@ def import_vault(receiver_username: str,
     with open(export_path, 'r', encoding='utf-8') as f:
         export_data = json.load(f)
 
-    # ── Guard: verify this export was created for this receiver ───────────
+    # verify this export was created for this receiver ....note here============
     intended_receiver = export_data.get("receiver_username", "")
     if intended_receiver and intended_receiver != receiver_username:
         raise ValueError(
@@ -334,15 +331,15 @@ def import_vault(receiver_username: str,
 
     p = receiver_priv['p']
 
-    # ── 1. Verify sender's DH public key signature ─────────────────────────
-    A         = int(export_data["dh_public_key"])
+    # Verify sender's DH public key signature 
+    Y_A       = int(export_data["dh_public_key"])
     dh_sig_r  = int(export_data["dh_signature"]["r"])
     dh_sig_s  = int(export_data["dh_signature"]["s"])
 
-    if not verify(int_to_bytes(A), (dh_sig_r, dh_sig_s), sender_pub):
+    if not verify(int_to_bytes(Y_A), (dh_sig_r, dh_sig_s), sender_pub):
         raise ValueError("Sender DH public key signature is invalid. Aborting.")
 
-    # ── 2. Verify encrypted-payload signature ──────────────────────────────
+    # Verify encrypted-payload signature
     encrypted_payload_b64 = export_data["encrypted_payload"]
     raw_encrypted         = base64.b64decode(encrypted_payload_b64)
     payload_sig_r         = int(export_data["payload_signature"]["r"])
@@ -351,12 +348,11 @@ def import_vault(receiver_username: str,
     if not verify(raw_encrypted, (payload_sig_r, payload_sig_s), sender_pub):
         raise ValueError("Payload signature is invalid. Aborting.")
 
-    # ── 3. Derive shared secret ────────────────────────────────────────────
-    # K = A ^ x_receiver mod p  (mirrors sender's y_receiver ^ a mod p)
-    K           = mod_exp(A, receiver_priv['x'], p)
+    # calculate shared secret
+    K           = mod_exp(Y_A, receiver_priv['x'], p)
     session_key = sha256_bytes(int_to_bytes(K))
 
-    # ── 4. Decrypt payload ─────────────────────────────────────────────────
+    # Decrypt payload
     nonce      = raw_encrypted[:16]
     tag        = raw_encrypted[16:32]
     ciphertext = raw_encrypted[32:]
@@ -365,7 +361,7 @@ def import_vault(receiver_username: str,
     plaintext = cipher.decrypt_and_verify(ciphertext, tag)
     entries   = json.loads(plaintext.decode('utf-8'))
 
-    # ── 5. Re-encrypt with receiver's master password and re-sign ──────────
+    # Re-encrypt with receiver's master password and re-sign
     _encrypt_and_save(receiver_username,
                       receiver_master_password,
                       entries,

@@ -25,3 +25,4 @@ password_manager/test_prime.py
 vaults/
 keys/
 exports/
+ex.json
