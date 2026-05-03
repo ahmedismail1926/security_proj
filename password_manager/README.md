@@ -1,47 +1,43 @@
 # Secure Password Manager
 
-A cryptographically secure password manager built with Python using ElGamal encryption, AES-256-GCM, and digital signatures for vault integrity verification.
+A cryptographically secure password manager built with Python using ElGamal digital signatures, AES-256-GCM encryption, and a 4-step signed Diffie-Hellman protocol for secure vault export/import.
 
 ## Features
 
-- 🔐 **ElGamal Encryption**: Asymmetric cryptography for secure key generation
-- 🔒 **AES-256-GCM**: Symmetric encryption for password vault storage
-- ✍️ **Digital Signatures**: ElGamal-based signatures to verify vault integrity
-- 🛡️ **Safe Primes**: Large prime number generation (2048-bit default)
-- 🎨 **GUI Interface**: Tkinter-based user-friendly interface
-- 👤 **Multi-User Support**: Each user has independent keys and vaults
-- 📤 **Public Key Export**: Share public keys for vault verification
+- **ElGamal Key Pairs**: Per-user asymmetric keys for digital signatures (Module 1)
+- **AES-256-GCM Vault Encryption**: Symmetric encryption with master password derived key (Module 2)
+- **Digital Signatures**: ElGamal-based vault integrity verification on every access (Module 3)
+- **Secure DH Export/Import**: 4-step signed Diffie-Hellman key exchange for vault transfer (Module 4)
+- **Multi-User Support**: Each user has independent keys and vaults
+- **GUI + CLI**: Both Tkinter GUI and full command-line interface
 
-## Architecture
-
-### Directory Structure
+## Directory Structure
 
 ```
 password_manager/
-├── main.py                    # Entry point for CLI (if applicable)
-├── README.md                  # This file
+├── main.py                    # CLI entry point
 ├── config/
-│   └── params.json           # ElGamal parameters (p, alpha)
-├── keys/                     # User keys directory
+│   └── params.json           # Shared ElGamal parameters (q, alpha)
+├── keys/
 │   └── {username}/
-│       ├── private_key.json  # Private key (x, p, alpha)
-│       └── public_key.json   # Public key (y, p, alpha)
-├── vaults/                   # Encrypted vault storage
-│   └── {username}_vault.json # Encrypted vault + signature
-├── exports/                  # Public key exports
+│       ├── private_key.json  # Private key (x, q, alpha) — restricted permissions
+│       └── public_key.json   # Public key (y, q, alpha)
+├── vaults/
+│   └── {username}_vault.json # Encrypted vault + ElGamal signature
+├── exports/                  # DH exchange session files
 ├── gui/
-│   ├── app.py               # Main GUI application
+│   ├── app.py               # Tkinter GUI application
 │   └── views/
-│       ├── init_view.py     # User initialization screen
-│       ├── vault_view.py    # Password management screen
-│       └── export_view.py   # Public key export screen
+│       ├── init_view.py     # Initialize / Login screen
+│       ├── vault_view.py    # Credential management screen
+│       └── export_view.py   # 4-step DH export/import screen
 ├── modules/
-│   ├── elgamal_keygen.py    # Key generation & prime generation
-│   ├── vault_manager.py     # Vault encryption/decryption
-│   ├── signatures.py        # Digital signatures
-│   └── dh_export.py         # Diffie-Hellman export (if applicable)
+│   ├── elgamal_keygen.py    # Key generation (Module 1)
+│   ├── vault_manager.py     # Vault encryption/decryption (Module 2)
+│   ├── signatures.py        # Digital signatures (Module 3)
+│   └── dh_export.py         # Diffie-Hellman export (Module 4)
 └── utils/
-    └── crypto_utils.py      # Utility cryptographic functions
+    └── crypto_utils.py      # Utility functions (mod_exp, SHA-256, etc.)
 ```
 
 ## Installation
@@ -49,237 +45,266 @@ password_manager/
 ### Prerequisites
 
 - Python 3.8+
-- pip package manager
+- pip
 
-### Step 1: Install Dependencies
-
-```bash
-pip install pycryptodome sympy
-```
-
-**Required packages:**
-- `pycryptodome`: AES encryption and cryptographic utilities
-- `sympy`: Prime number generation and primality testing
-
-### Step 2: Verify Installation
+### Install Dependencies
 
 ```bash
-python -m pip list | grep -i "crypto\|sympy"
+pip install pycryptodome
 ```
 
-## Quick Start
+## Running the Application
 
-### Running the GUI Application
+### Option 1: GUI
 
 ```bash
 cd password_manager
 python gui/app.py
 ```
 
-This will launch the Tkinter GUI with three main screens:
-- **Init View**: Create a new user account and initialize keys
-- **Vault View**: Add, view, update, and delete credentials
-- **Export View**: Export your public key for sharing
+### Option 2: CLI (I don't know why you may choose this option instead of GUI but anyway here it is)
 
-### Initial Setup Workflow
+All commands are run from the `password_manager/` directory:
 
-1. **Start the application**:
-   ```bash
-   python gui/app.py
-   ```
-
-2. **Create a new user** (if first-time use):
-   - Enter username and master password
-   - The system will generate ElGamal parameters and keys
-   - Click "Initialize User"
-
-3. **Access your vault**:
-   - Select "Vault View" tab
-   - Enter your username and master password
-   - Add credentials for websites
-
-4. **Export public key** (optional):
-   - Select "Export View" tab
-   - Export your public key to share with others for vault verification
-
-## Usage Examples
-
-### Programmatic Usage
-
-```python
-from modules.elgamal_keygen import initialize_user, generate_params
-from modules.vault_manager import create_vault, add_credential, get_credential
-
-# Initialize a new user with generated ElGamal parameters
-initialize_user('alice', generate_new_params=True)
-
-# Create vault for the user
-create_vault('alice', master_password='SecurePassword123')
-
-# Add a credential
-add_credential('alice', 'SecurePassword123', 'github.com', 'alice_username', 'github_password')
-
-# Retrieve a credential
-cred = get_credential('alice', 'SecurePassword123', 'github.com')
-print(cred)  # {'website': 'github.com', 'username': 'alice_username', 'password': 'github_password'}
-
-# Update a credential
-update_credential('alice', 'SecurePassword123', 'github.com', 'new_username', 'new_password')
-
-# Delete a credential
-delete_credential('alice', 'SecurePassword123', 'github.com')
+```bash
+python main.py <command> [args]
 ```
 
-### Generating ElGamal Parameters
+---
 
-```python
-from modules.elgamal_keygen import generate_params
+## CLI Usage
 
-# Generate new 2048-bit safe prime and primitive root
-params = generate_params(bit_length=2048, save_to_config=True)
-print(f"Prime p: {params['p']}")
-print(f"Generator alpha: {params['alpha']}")
+### 1. Initialize a New User
+
+Creates ElGamal keys and an empty encrypted vault.
+
+```bash
+python main.py init <username>
 ```
+
+You will be prompted for a master password.
+
+**Example:**
+```
+> python main.py init alice
+Enter new master password: ********
+User 'alice' initialized and vault created.
+```
+
+---
+
+### 2. Add a Credential
+
+```bash
+python main.py add <username>
+```
+
+You will be prompted for master password, website, username, and password.
+
+**Example:**
+```
+> python main.py add alice
+Enter master password: ********
+Website: github.com
+Username: alice_dev
+Password: ********
+Credential added successfully.
+```
+
+---
+
+### 3. Retrieve a Credential
+
+```bash
+python main.py get <username> <website>
+```
+
+**Example:**
+```
+> python main.py get alice github.com
+Enter master password: ********
+Website:  github.com
+Username: alice_dev
+Password: my_secret_pass
+```
+
+---
+
+### 4. Update a Credential
+
+```bash
+python main.py update <username> <website>
+```
+
+**Example:**
+```
+> python main.py update alice github.com
+Enter master password: ********
+New username: alice_new
+New password: ********
+Credential updated successfully.
+```
+
+---
+
+### 5. Delete a Credential
+
+```bash
+python main.py delete <username> <website>
+```
+
+**Example:**
+```
+> python main.py delete alice github.com
+Enter master password: ********
+Credential deleted successfully.
+```
+
+---
+
+### 6. Export Public Key
+
+```bash
+python main.py export-key <username> <output_filename>
+```
+
+**Example:**
+```
+> python main.py export-key alice alice_pub.json
+Public key for 'alice' exported to alice_pub.json.
+```
+
+---
+
+### 7. Secure Vault Export/Import (4-Step DH Protocol)
+
+Transfer a vault from one user (sender) to another (receiver) using a signed Diffie-Hellman key exchange. Both users must be initialized first.
+
+#### Step 1 — Sender initiates DH exchange
+
+```bash
+python main.py export-step1 <sender> <receiver> <session_name>
+```
+
+**Example:**
+```
+> python main.py export-step1 alice bob mysession
+Step 1 complete → send file to receiver
+```
+
+Creates `exports/mysession_step1.json` — send this file to the receiver.
+
+#### Step 2 — Receiver responds to DH exchange
+
+```bash
+python main.py export-step2 <receiver> <session_name>
+```
+
+**Example:**
+```
+> python main.py export-step2 bob mysession
+Step 2 complete → send back to sender
+```
+
+Creates `exports/mysession_step2.json` — send this file back to the sender.
+
+#### Step 3 — Sender encrypts and signs the vault
+
+```bash
+python main.py export-final <sender> <session_name>
+```
+
+**Example:**
+```
+> python main.py export-final alice mysession
+Enter master password: ********
+Final export ready → send to receiver
+```
+
+Creates `exports/mysession_final.json` — send this file to the receiver.
+
+#### Step 4 — Receiver decrypts and imports the vault
+
+```bash
+python main.py import-final <receiver> <session_name>
+```
+
+**Example:**
+```
+> python main.py import-final bob mysession
+Enter master password for new vault: ********
+Import successful
+```
+
+The sender's credentials are now merged into the receiver's vault.
+
+---
+
+## Full CLI Quick-Start Example
+
+```bash
+# Initialize two users
+python main.py init alice
+python main.py init bob
+
+# Alice adds some credentials
+python main.py add alice        # adds github.com
+python main.py add alice        # adds bank.com
+
+# Alice exports her vault to Bob (4-step DH exchange)
+python main.py export-step1 alice bob session1
+python main.py export-step2 bob session1
+python main.py export-final alice session1
+python main.py import-final bob session1
+
+# Bob can now retrieve alice's credentials
+python main.py get bob github.com
+```
+
+## Security Properties
+
+| Module | Feature | Implementation |
+|---|---|---|
+| **1** | ElGamal Key Management | Per-user key pair generation, private key stored with 0o600 permissions |
+| **2** | Vault Encryption | AES-256-GCM, SHA-256 key derivation from master password |
+| **3** | Digital Signatures | ElGamal signatures (from scratch), verified on every vault access |
+| **4** | Secure DH Export | 4-step signed ephemeral Diffie-Hellman, AES-GCM session encryption |
 
 ## Configuration
 
-### ElGamal Parameters (config/params.json)
+### ElGamal Parameters (`config/params.json`)
 
-The application uses a shared set of ElGamal parameters (p, alpha) stored in `config/params.json`:
+Shared parameters used for key generation:
 
 ```json
 {
-  "p": "1234567890123456789...",
-  "alpha": "2"
+  "q": "large_prime_number",
+  "alpha": "primitive_root_modulo_q"
 }
 ```
 
-- **p**: A 2048-bit safe prime (p = 2q+1 where both p and q are prime)
-- **alpha**: A primitive root modulo p
+### Vault Format (`vaults/{username}_vault.json`)
 
-These parameters are generated automatically on first use or can be pre-configured.
-
-### User Keys
-
-Each user has private and public keys stored in `keys/{username}/`:
-
-**private_key.json** (permissions: 0o600):
 ```json
 {
-  "x": "private_exponent",
-  "p": "prime",
-  "alpha": "generator"
+  "encrypted_vault": "base64_encoded_AES-GCM_ciphertext",
+  "signature": {
+    "r": "elgamal_signature_r",
+    "s": "elgamal_signature_s"
+  }
 }
 ```
-
-**public_key.json**:
-```json
-{
-  "y": "public_exponent (alpha^x mod p)",
-  "p": "prime",
-  "alpha": "generator"
-}
-```
-
-## Security Features
-
-### 1. Master Password Protection
-- Passwords are derived using SHA-256
-- Each vault is encrypted with AES-256-GCM using a key derived from the master password
-
-### 2. Vault Integrity
-- Each vault is digitally signed using the user's private key
-- On access, the signature is verified with the public key
-- Any tampering is detected immediately
-
-### 3. Safe Prime Usage
-- Primes of form p = 2q+1 (safe primes) ensure strong cryptographic properties
-- Primitive roots are verified to generate the full multiplicative group
-
-### 4. Secure Key Storage
-- Private keys are stored with restricted file permissions (0o600)
-- Keys are never exposed in logs or output
-
-## Security Warnings ⚠️
-
-- **Master Password**: Never forget your master password—there is no recovery mechanism
-- **Private Keys**: Protect your `keys/` directory; it contains sensitive private keys
-- **Config File**: The `config/params.json` file should be treated as public (p and alpha are not secret)
-- **Production Use**: This is an educational implementation. For production, consider using established tools like KeePass or 1Password
 
 ## Troubleshooting
 
-### Issue: "Config file not found"
-**Solution**: The system will auto-generate parameters on first use. If needed, manually generate:
-```python
-from modules.elgamal_keygen import generate_params
-generate_params(2048, save_to_config=True)
-```
-
-### Issue: "User already initialized"
-**Solution**: Use a different username or delete the `keys/{username}/` directory to reinitialize.
-
-### Issue: "Wrong master password or vault corrupted"
-**Solution**: Ensure you're using the correct master password. If the vault is corrupted, recover from backup.
-
-### Issue: Module import errors
-**Solution**: Ensure you're running from the `password_manager/` directory and dependencies are installed:
-```bash
-pip install pycryptodome sympy
-```
-
-## Project Modules
-
-### `elgamal_keygen.py`
-- `generate_safe_prime(bit_length)`: Generate large safe primes
-- `find_primitive_root(p)`: Find primitive roots modulo p
-- `generate_params(bit_length, save_to_config)`: Generate and save ElGamal parameters
-- `initialize_user(username, ...)`: Initialize a new user with keys
-- `load_private_key(username)`: Load user's private key
-- `load_public_key(username)`: Load user's public key
-
-### `vault_manager.py`
-- `create_vault(username, master_password)`: Create an encrypted vault
-- `add_credential(username, master_password, website, user, password)`: Add credential
-- `get_credential(username, master_password, website)`: Retrieve credential
-- `update_credential(username, master_password, website, new_user, new_password)`: Update credential
-- `delete_credential(username, master_password, website)`: Delete credential
-
-### `signatures.py`
-- `sign_vault(username, private_key)`: Sign vault with private key
-- `verify_vault(username, public_key)`: Verify vault signature
-
-### `crypto_utils.py`
-- `sha256_bytes(data)`: SHA-256 hashing
-- `mod_exp(base, exp, mod)`: Modular exponentiation
-
-## Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| pycryptodome | 3.15+ | AES encryption, SHA-256 |
-| sympy | 1.12+ | Prime generation, primality testing |
-| tkinter | Built-in | GUI framework |
-
-## Performance Notes
-
-- **Prime Generation**: Generating 2048-bit safe primes takes ~5-30 seconds depending on system
-- **Primitive Root Search**: Finding a valid generator takes ~1-5 seconds
-- **Vault Operations**: Encryption/decryption is fast (<100ms)
-
-## Future Enhancements
-
-- [ ] CLI interface for non-GUI usage
-- [ ] Multi-factor authentication
-- [ ] Vault backup and restore
-- [ ] Cloud sync support
-- [ ] Password strength meter
-- [ ] Import/export from other password managers
+| Issue | Solution |
+|---|---|
+| `User already initialized` | Use a different username or delete `keys/{username}/` |
+| `Wrong master password or vault corrupted` | Re-enter the correct password; no recovery if forgotten |
+| `Vault integrity check failed` | Vault file was tampered with; restore from backup |
+| Unicode errors on Windows | Run with `python -X utf8 main.py ...` |
+| `ModuleNotFoundError: Crypto` | Run `pip install pycryptodome` |
 
 ## License
 
-Educational project for Computer Security course
-
-## Support
-
-For issues or questions, refer to the project documentation or contact the course instructor.
+Educational project — Computer Security course.
