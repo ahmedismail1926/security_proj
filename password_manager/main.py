@@ -20,7 +20,6 @@ def main():
     command = sys.argv[1]
 
     try:
-        # ── init ──────────────────────────────────────────────────────────
         if command == "init":
             if len(sys.argv) != 3:
                 print("Usage: python main.py init <username>", file=sys.stderr)
@@ -31,7 +30,6 @@ def main():
             create_vault(username, mp)
             print(f"User '{username}' initialized and vault created.")
 
-        # ── export-key ────────────────────────────────────────────────────
         elif command == "export-key":
             if len(sys.argv) != 4:
                 print("Usage: python main.py export-key <username> <output_path>",
@@ -42,7 +40,6 @@ def main():
             export_public_key(username, output_path)
             print(f"Public key for '{username}' exported to {output_path}.")
 
-        # ── add ───────────────────────────────────────────────────────────
         elif command == "add":
             if len(sys.argv) != 3:
                 print("Usage: python main.py add <username>", file=sys.stderr)
@@ -55,7 +52,6 @@ def main():
             add_credential(username, mp, website, user, password)
             print("Credential added successfully.")
 
-        # ── get ───────────────────────────────────────────────────────────
         elif command == "get":
             if len(sys.argv) != 4:
                 print("Usage: python main.py get <username> <website>",
@@ -72,11 +68,10 @@ def main():
             else:
                 print("Not found.")
 
-        # ── update ────────────────────────────────────────────────────────
         elif command == "update":
             if len(sys.argv) != 4:
                 print("Usage: python main.py update <username> <website>",
-                      file=sys.stderr)
+                    file=sys.stderr)
                 sys.exit(1)
             username     = sys.argv[2]
             website      = sys.argv[3]
@@ -86,11 +81,10 @@ def main():
             update_credential(username, mp, website, new_user, new_password)
             print("Credential updated successfully.")
 
-        # ── delete ────────────────────────────────────────────────────────
         elif command == "delete":
             if len(sys.argv) != 4:
                 print("Usage: python main.py delete <username> <website>",
-                      file=sys.stderr)
+                    file=sys.stderr)
                 sys.exit(1)
             username = sys.argv[2]
             website  = sys.argv[3]
