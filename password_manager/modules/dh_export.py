@@ -332,13 +332,6 @@ def import_vault(receiver_username: str,
     with open(export_path, 'r', encoding='utf-8') as f:
         export_data = json.load(f)
 
-    # verify this export was created for this receiver ....note here============
-    intended_receiver = export_data.get("receiver_username", "")
-    if intended_receiver and intended_receiver != receiver_username:
-        raise ValueError(
-            f"Export was intended for '{intended_receiver}', "
-            f"not '{receiver_username}'. Aborting."
-        )
 
     sender_username = export_data["sender_username"]
     sender_pub      = load_public_key(sender_username)
