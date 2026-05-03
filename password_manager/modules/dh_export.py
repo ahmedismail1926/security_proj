@@ -29,6 +29,8 @@ def export_step1(sender_username: str, receiver_username: str, filename: str):
     data = {
         "sender": sender_username,
         "receiver": receiver_username,
+        "p": str(p),
+        "alpha": str(alpha),
         "Y_A": str(Y_A),
         "sig": {"r": str(r), "s": str(s)}
     }
@@ -65,8 +67,9 @@ def export_step2(receiver_username: str, filename: str):
     if not verify(int_to_bytes(Y_A), (r, s), sender_pub):
         raise ValueError("Invalid DH key from sender")
 
-    p = receiver_priv['p']
-    alpha = receiver_priv['alpha']
+    # Use the SENDER's DH parameters so both sides share the same p and alpha
+    p = int(data["p"])
+    alpha = int(data["alpha"])
 
     # Generate receiver DH key
     X_B = random_in_range(2, p - 2)
@@ -190,7 +193,19 @@ def import_finalize(receiver_username: str, master_password: str, filename: str)
 
     entries = json.loads(plaintext.decode())
 
-    _encrypt_and_save(receiver_username, master_password, entries, receiver_priv)
+    # Merge with receiver's existing vault (append, skip duplicates)
+    try:
+        existing = _decrypt_vault(receiver_username, master_password)
+    except ValueError:
+        existing = []
+
+    existing_websites = {e.get("website", "").lower() for e in existing}
+    for entry in entries:
+        if entry.get("website", "").lower() not in existing_websites:
+            existing.append(entry)
+            existing_websites.add(entry.get("website", "").lower())
+
+    _encrypt_and_save(receiver_username, master_password, existing, receiver_priv)
 
     print("Import successful")
 
