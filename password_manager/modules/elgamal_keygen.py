@@ -7,38 +7,51 @@ from utils.crypto_utils import mod_exp
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KEYS_DIR = os.path.join(BASE_DIR, 'keys')
 EXPORTS_DIR = os.path.join(BASE_DIR, 'exports')
+CONFIG_PATH = os.path.join(BASE_DIR, 'config')
 
 
-def generate_prime(bits=32):
-    q = number.getPrime(bits - 1)
-    return q
+# def generate_prime(bits=64):
+#     q = number.getPrime(bits - 1)
+#     return q
 
 
-def find_primitive_root(p):
-    for a in range(2, p):
-        generated_numbers = set()
+# def find_primitive_root(p):
+#     for a in range(2, p):
+#         generated_numbers = set()
         
-        for power in range(1, p):
-            result = pow(a, power, p)
+#         for power in range(1, p):
+#             result = pow(a, power, p)
             
-            if result in generated_numbers:
-                break      
+#             if result in generated_numbers:
+#                 break      
 
-            generated_numbers.add(result)
+#             generated_numbers.add(result)
     
-        if len(generated_numbers) == p - 1:
-            return a 
+#         if len(generated_numbers) == p - 1:
+#             return a 
 
-    return None
+#     return None
+
+def _load_params() -> dict:
+    params_path = os.path.join(CONFIG_PATH, 'params.json')
+    with open(params_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return {
+        'p':     int(data['p']),
+        'alpha': int(data['alpha'])
+    }
+
 
 def initialize_user(username: str) -> None:
     user_key_dir = os.path.join(KEYS_DIR, username)
     if os.path.exists(user_key_dir):
         raise ValueError("User already initialized.")
 
-    # Generate a large prime q and find a generator alpha
-    q     = generate_prime()
-    alpha = find_primitive_root(q)
+    # q     = generate_prime()
+    # alpha = find_primitive_root(q)
+    params = _load_params()
+    q = params['p']
+    alpha = params['alpha']
 
     x = secrets.randbelow(q - 3) + 2   # Private key x in [2, q-2]
 
