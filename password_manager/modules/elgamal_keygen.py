@@ -37,7 +37,7 @@ def _load_params() -> dict:
     with open(params_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     return {
-        'p':     int(data['p']),
+        'q':     int(data['q']),
         'alpha': int(data['alpha'])
     }
 
@@ -50,7 +50,7 @@ def initialize_user(username: str) -> None:
     # q     = generate_prime()
     # alpha = find_primitive_root(q)
     params = _load_params()
-    q = params['p']
+    q = params['q']
     alpha = params['alpha']
 
     x = secrets.randbelow(q - 3) + 2   # Private key x in [2, q-2]
