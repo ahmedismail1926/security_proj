@@ -19,7 +19,6 @@ A cryptographically secure password manager built with Python using ElGamal encr
 ```
 password_manager/
 ├── main.py                    # Entry point for CLI (if applicable)
-├── README.md                  # This file
 ├── config/
 │   └── params.json           # ElGamal parameters (p, alpha)
 ├── keys/                     # User keys directory
@@ -40,8 +39,10 @@ password_manager/
 │   ├── vault_manager.py     # Vault encryption/decryption
 │   ├── signatures.py        # Digital signatures
 │   └── dh_export.py         # Diffie-Hellman export (if applicable)
-└── utils/
-    └── crypto_utils.py      # Utility cryptographic functions
+├── utils/
+|    └── crypto_utils.py      # Utility cryptographic functions
+├── README.md                  # This file
+
 ```
 
 ## Installation
