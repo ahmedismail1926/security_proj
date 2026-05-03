@@ -140,51 +140,6 @@ def main():
             mp = getpass.getpass("Enter master password for new vault: ")
 
             import_finalize(receiver, mp, filename)
-        # ── export ────────────────────────────────────────────────────────
-        # elif command == "export":
-        #     # Usage: python main.py export <sender_username> <receiver_username> <output_file>
-        #     #
-        #     # The receiver's ElGamal public key must already exist locally
-        #     # (placed there by the receiver via `export-key` or manual copy).
-        #     if len(sys.argv) != 5:
-        #         print(
-        #             "Usage: python main.py export "
-        #             "<sender_username> <receiver_username> <output_file>",
-        #             file=sys.stderr
-        #         )
-        #         sys.exit(1)
-
-        #     sender_username   = sys.argv[2]
-        #     receiver_username = sys.argv[3]
-        #     output_file       = sys.argv[4]
-
-        #     mp = getpass.getpass("Enter master password: ")
-
-        #     export_filename = os.path.basename(output_file).replace('.json', '')
-        #     export_vault(sender_username, mp, receiver_username, export_filename)
-        #     print(f"Vault exported successfully to exports/{export_filename}.json")
-
-        # # ── import ────────────────────────────────────────────────────────
-        # elif command == "import":
-        #     # Usage: python main.py import <receiver_username> <export_file>
-        #     #
-        #     # The sender's username is embedded in the export file itself;
-        #     # their ElGamal public key must exist locally for signature verification.
-        #     if len(sys.argv) != 4:
-        #         print(
-        #             "Usage: python main.py import <receiver_username> <export_file>",
-        #             file=sys.stderr
-        #         )
-        #         sys.exit(1)
-
-        #     receiver_username = sys.argv[2]
-        #     export_file       = sys.argv[3]
-
-        #     mp = getpass.getpass("Enter master password for new vault: ")
-
-        #     export_filename = os.path.basename(export_file).replace('.json', '')
-        #     import_vault(receiver_username, mp, export_filename)
-        #     print(f"Vault imported successfully for user '{receiver_username}'.")
 
         else:
             print(f"Unknown command: {command}", file=sys.stderr)

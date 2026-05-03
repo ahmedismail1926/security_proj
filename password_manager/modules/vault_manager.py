@@ -47,19 +47,10 @@ def _encrypt_and_save(username: str, master_password: str, entries: list, privat
     combined            = nonce + tag + ciphertext
     encrypted_vault_str = base64.b64encode(combined).decode('utf-8')
 
-    # Write the encrypted vault (no signature yet) using a temp file so the
-    # on-disk vault is never left in a half-written state.
     vault_path = _get_vault_path(username)
-    temp_path  = vault_path + ".tmp"
-
-    with open(temp_path, 'w', encoding='utf-8') as f:
+    with open(vault_path, 'w', encoding='utf-8') as f:
         json.dump({"encrypted_vault": encrypted_vault_str, "signature": {}}, f, indent=2)
 
-    os.replace(temp_path, vault_path)
-
-    # sign_vault(username, private_key) reads the vault file that was just
-    # written above, computes a signature over encrypted_vault_str, and
-    # writes the result back into the same file.
     sign_vault(username, private_key)
 
 def create_vault(username: str, master_password: str) -> None:

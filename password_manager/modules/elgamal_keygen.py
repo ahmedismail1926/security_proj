@@ -108,7 +108,6 @@ def load_public_key(username: str) -> dict:
 
 
 def export_public_key(username: str, export_path: str) -> None:
-    """Write the user's public key to an arbitrary path for sharing."""
     pub = load_public_key(username)
     with open(os.path.join(EXPORTS_DIR, export_path), 'w', encoding='utf-8') as f:
         json.dump(pub, f, indent=2)
