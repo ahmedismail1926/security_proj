@@ -6,29 +6,29 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VAULTS_DIR = os.path.join(BASE_DIR, 'vaults')
 
 def sign(message_bytes: bytes, private_key: dict) -> tuple[int, int]:
-    p = private_key['p']
+    q = private_key['q']
     alpha = private_key['alpha']
     x = private_key['x']
     
-    h = sha256_int(message_bytes) % (p - 1)
+    h = sha256_int(message_bytes) % (q - 1)
     if h == 0:
         h = 1
         
     for _ in range(1000):
-        k = random_in_range(2, p - 2)
-        if gcd(k, p - 1) != 1:
+        k = random_in_range(2, q - 2)
+        if gcd(k, q - 1) != 1:
             continue
             
-        r = mod_exp(alpha, k, p)
+        r = mod_exp(alpha, k, q)
         if r == 0:
             continue
             
         try:
-            k_inv = mod_inverse(k, p - 1)
+            k_inv = mod_inverse(k, q - 1)
         except ValueError:
             continue
             
-        s = (k_inv * (h - x * r)) % (p - 1)
+        s = (k_inv * (h - x * r)) % (q - 1)
         if s == 0:
             continue
             
@@ -38,21 +38,21 @@ def sign(message_bytes: bytes, private_key: dict) -> tuple[int, int]:
 
 def verify(message_bytes: bytes, signature: tuple[int, int], public_key: dict) -> bool:
     r, s = signature
-    p = public_key['p']
+    q = public_key['q']
     alpha = public_key['alpha']
     y = public_key['y']
     
-    if not (1 <= r <= p - 1):
+    if not (1 <= r <= q - 1):
         return False
-    if not (1 <= s <= p - 2):
+    if not (1 <= s <= q - 2):
         return False
         
-    h = sha256_int(message_bytes) % (p - 1)
+    h = sha256_int(message_bytes) % (q - 1)
     if h == 0:
         h = 1
         
-    v1 = mod_exp(alpha, h, p)
-    v2 = (mod_exp(y, r, p) * mod_exp(r, s, p)) % p
+    v1 = mod_exp(alpha, h, q)
+    v2 = (mod_exp(y, r, q) * mod_exp(r, s, q)) % q
     
     return v1 == v2
 

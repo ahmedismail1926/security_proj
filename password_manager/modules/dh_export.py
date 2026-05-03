@@ -15,12 +15,12 @@ EXPORTS_DIR = os.path.join(BASE_DIR, 'exports')
 def export_step1(sender_username: str, receiver_username: str, filename: str):
     sender_priv = load_private_key(sender_username)
 
-    p = sender_priv['p']
+    q = sender_priv['q']
     alpha = sender_priv['alpha']
 
     # Generate ephemeral DH key
-    X_A = random_in_range(2, p - 2) # Generates Private Key X_A
-    Y_A = mod_exp(alpha, X_A, p) # Computes Public Key Y_A
+    X_A = random_in_range(2, q - 2) # Generates Private Key X_A
+    Y_A = mod_exp(alpha, X_A, q) # Computes Public Key Y_A
 
     # Sign Y_A
     Y_A_bytes = int_to_bytes(Y_A)
@@ -29,7 +29,7 @@ def export_step1(sender_username: str, receiver_username: str, filename: str):
     data = {
         "sender": sender_username,
         "receiver": receiver_username,
-        "p": str(p),
+        "q": str(q),
         "alpha": str(alpha),
         "Y_A": str(Y_A),
         "sig": {"r": str(r), "s": str(s)}
@@ -67,16 +67,16 @@ def export_step2(receiver_username: str, filename: str):
     if not verify(int_to_bytes(Y_A), (r, s), sender_pub):
         raise ValueError("Invalid DH key from sender")
 
-    # Use the SENDER's DH parameters so both sides share the same p and alpha
-    p = int(data["p"])
+    # Use the SENDER's DH parameters so both sides share the same q and alpha
+    q = int(data["q"])
     alpha = int(data["alpha"])
 
     # Generate receiver DH key
-    X_B = random_in_range(2, p - 2)
-    Y_B = mod_exp(alpha, X_B, p)
+    X_B = random_in_range(2, q - 2)
+    Y_B = mod_exp(alpha, X_B, q)
 
     # Compute shared secret
-    K = mod_exp(Y_A, X_B, p)
+    K = mod_exp(Y_A, X_B, q)
 
     # Save K locally
     with open(os.path.join(EXPORTS_DIR, filename + "_receiver_secret.json"), "w") as f:
@@ -127,10 +127,10 @@ def export_finalize(sender_username: str, master_password: str, filename: str):
     if not verify(int_to_bytes(Y_B), (r, s), receiver_pub):
         raise ValueError("Invalid DH response")
 
-    p = sender_priv['p']
+    q = sender_priv['q']
 
     # Compute shared secret
-    K = mod_exp(Y_B, X_A, p)
+    K = mod_exp(Y_B, X_A, q)
     session_key = sha256_bytes(int_to_bytes(K))
 
     # Decrypt vault
@@ -253,15 +253,15 @@ def export_vault(sender_username: str,
     sender_priv = load_private_key(sender_username)
     receiver_pub = load_public_key(receiver_username)
 
-    p     = sender_priv['p']
+    q     = sender_priv['q']
     alpha = sender_priv['alpha']
 
     # Generate sender's ephemeral DH keypair 
-    X_A = random_in_range(2, p - 2)
-    Y_A = mod_exp(alpha, X_A, p)
+    X_A = random_in_range(2, q - 2)
+    Y_A = mod_exp(alpha, X_A, q)
 
-    # Compute shared secret and derive session key  K = y_receiver ^ a mod p  
-    K = mod_exp(receiver_pub['y'], X_A, p)
+    # Compute shared secret and derive session key  K = y_receiver ^ a mod q  
+    K = mod_exp(receiver_pub['y'], X_A, q)
     session_key = sha256_bytes(int_to_bytes(K))   # 32-byte AES-256 key
 
     # Sign sender's ephemeral DH public key 
@@ -337,7 +337,7 @@ def import_vault(receiver_username: str,
     sender_pub      = load_public_key(sender_username)
     receiver_priv   = load_private_key(receiver_username)
 
-    p = receiver_priv['p']
+    q = receiver_priv['q']
 
     # Verify sender's DH public key signature 
     Y_A       = int(export_data["dh_public_key"])
@@ -357,7 +357,7 @@ def import_vault(receiver_username: str,
         raise ValueError("Payload signature is invalid. Aborting.")
 
     # calculate shared secret
-    K           = mod_exp(Y_A, receiver_priv['x'], p)
+    K           = mod_exp(Y_A, receiver_priv['x'], q)
     session_key = sha256_bytes(int_to_bytes(K))
 
     # Decrypt payload

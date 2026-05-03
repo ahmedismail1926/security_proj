@@ -9,46 +9,40 @@ KEYS_DIR = os.path.join(BASE_DIR, 'keys')
 EXPORTS_DIR = os.path.join(BASE_DIR, 'exports')
 
 
-# ── Safe prime and generator generation ────────────────────────────────────
-
-def generate_safe_prime(bits=64):
-    """
-    Generate a safe prime p = 2q + 1 where both p and q are prime.
-    Uses PyCryptodome's cryptographic prime generation.
-    """
-    while True:
-        q = number.getPrime(bits - 1)
-        p = 2 * q + 1
-        if number.isPrime(p):
-            return p, q
+def generate_prime(bits=32):
+    q = number.getPrime(bits - 1)
+    return q
 
 
-def find_generator(p, q):
-    """
-    Find a primitive root (generator) modulo a safe prime p = 2q + 1.
+def find_primitive_root(p):
+    for a in range(2, p):
+        generated_numbers = set()
+        
+        for power in range(1, p):
+            result = pow(a, power, p)
+            
+            if result in generated_numbers:
+                break      
 
-    For a safe prime, the only possible element orders are 1, 2, q, and 2q.
-    A generator has order 2q = p-1. We check:
-        g^2  != 1 (mod p)   → rules out order 1 or 2
-        g^q  != 1 (mod p)   → rules out order q
-    """
-    for g in range(2, p - 1):
-        if pow(g, 2, p) != 1 and pow(g, q, p) != 1:
-            return g
+            generated_numbers.add(result)
+    
+        if len(generated_numbers) == p - 1:
+            return a 
 
+    return None
 
 def initialize_user(username: str) -> None:
     user_key_dir = os.path.join(KEYS_DIR, username)
     if os.path.exists(user_key_dir):
         raise ValueError("User already initialized.")
 
-    # Generate a safe prime p and find a primitive root alpha
-    p, q  = generate_safe_prime()
-    alpha = find_generator(p, q)
+    # Generate a large prime q and find a generator alpha
+    q     = generate_prime()
+    alpha = find_primitive_root(q)
 
-    x = secrets.randbelow(p - 3) + 2   # Private key x in [2, p-2]
+    x = secrets.randbelow(q - 3) + 2   # Private key x in [2, q-2]
 
-    y = mod_exp(alpha, x, p) # Public key y = alpha^x mod p
+    y = mod_exp(alpha, x, q) # Public key y = alpha^x mod q
     
     os.makedirs(user_key_dir)
 
@@ -56,7 +50,7 @@ def initialize_user(username: str) -> None:
     priv_key_path = os.path.join(user_key_dir, 'private_key.json')
     priv_data = {
         "x":     str(x),
-        "p":     str(p),
+        "q":     str(q),
         "alpha": str(alpha)
     }
     with open(priv_key_path, 'w', encoding='utf-8') as f:
@@ -67,7 +61,7 @@ def initialize_user(username: str) -> None:
     pub_key_path = os.path.join(user_key_dir, 'public_key.json')
     pub_data = {
         "y":     str(y),
-        "p":     str(p),
+        "q":     str(q),
         "alpha": str(alpha)
     }
     with open(pub_key_path, 'w', encoding='utf-8') as f:
@@ -82,7 +76,7 @@ def load_private_key(username: str) -> dict:
         data = json.load(f)
     return {
         "x":     int(data["x"]),
-        "p":     int(data["p"]),
+        "q":     int(data["q"]),
         "alpha": int(data["alpha"])
     }
 
@@ -95,7 +89,7 @@ def load_public_key(username: str) -> dict:
         data = json.load(f)
     return {
         "y":     int(data["y"]),
-        "p":     int(data["p"]),
+        "q":     int(data["q"]),
         "alpha": int(data["alpha"])
     }
 
