@@ -12,8 +12,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Secure Password Manager")
-        self.geometry("700x500")
-        self.minsize(700, 500)
+        self.geometry("800x600")
+        self.minsize(800, 600)
         
         self.container = ttk.Frame(self)
         self.container.grid(row=0, column=0, sticky="nsew")
